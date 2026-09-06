@@ -440,10 +440,6 @@ def edit_file(path):
     else:
         text = ""
 
-    buffer = Buffer(completer=completer, complete_while_typing=True)
-    buffer.text = text
-    buffer.auto_suggest = AutoSuggestFromHistory()
-
     lexer = EasyLexer()
     variables = set()
 
@@ -457,6 +453,14 @@ def edit_file(path):
             parts = stripped.split()
             if len(parts) >= 2 and parts[0] == "set":
                 variables.add(parts[1])
+
+    buffer = Buffer(complete_while_typing=True)
+    buffer.text = text
+    buffer.auto_suggest = AutoSuggestFromHistory()
+
+    extract_variables()
+    completer = EasyCompleter(sorted(variables))
+    buffer.completer = completer
 
     def get_line_numbers():
         lines = buffer.text.splitlines()
