@@ -443,6 +443,10 @@ def edit_file(path):
     lexer = EasyLexer()
     variables = set()
 
+    buffer = Buffer(complete_while_typing=True)
+    buffer.text = text
+    buffer.auto_suggest = AutoSuggestFromHistory()
+
     def extract_variables():
         nonlocal variables
         variables = set()
@@ -453,10 +457,6 @@ def edit_file(path):
             parts = stripped.split()
             if len(parts) >= 2 and parts[0] == "set":
                 variables.add(parts[1])
-
-    buffer = Buffer(complete_while_typing=True)
-    buffer.text = text
-    buffer.auto_suggest = AutoSuggestFromHistory()
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -498,7 +498,7 @@ def edit_file(path):
         completion_info = ""
         if buffer.complete_state:
             completion = buffer.complete_state.current_completion
-            if completion and getattr(completion, "doc", None):
+            if completion and getattr(completion, "display_meta", None):
                 completion_info = f" | {completion.display_meta}"
         return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
@@ -515,6 +515,10 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
+        if not buffer.complete_state:
+            buffer.start_completion(select_first=False)
+
+    buffer.on_text_changed += on_text_changed
 
     line_numbers_control = FormattedTextControl(get_line_numbers)
     editor_kwargs = {
@@ -539,18 +543,6 @@ def edit_file(path):
     ])
 
     docs_visible = [False]
-
-    def get_doc_text():
-        if not docs_visible[0] or not buffer.complete_state:
-            return []
-        completion = buffer.complete_state.current_completion
-        if not completion:
-            return []
-        doc = getattr(completion, "doc", None) or ""
-        if not doc:
-            return []
-        lines = doc.splitlines()
-        return [("class:toolbar", f" {lines[0]}" + (f"\n {' '.join(lines[1:])}" if len(lines) > 1 else ""))]
 
     docs_control = FormattedTextControl(get_doc_text)
     docs_window = Window(content=docs_control, height=Dimension(min=0, preferred=8), style="class:toolbar")
@@ -654,6 +646,14 @@ def edit_file(path):
         else:
             buffer.cursor_down()
 
+    @kb.add("backspace")
+    def backspace(_):
+        buffer.delete_before_cursor()
+
+    @kb.add("backspace")
+    def backspace(_):
+        buffer.delete_before_cursor()
+
     @kb.add("c-space")
     def trigger_completion(_):
         from prompt_toolkit.application import get_app
@@ -749,7 +749,7 @@ def edit_file(path):
         full_screen=True,
         mouse_support=True,
         after_render=on_text_changed,
-        editing_mode=EditingMode.VI,
+        editing_mode=EditingMode.EMACS,
     )
 
     on_text_changed(None)
