@@ -1,4 +1,5 @@
 import os
+import re
 from prompt_toolkit import PromptSession
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.key_binding import KeyBindings
@@ -10,6 +11,8 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.filters import Condition
+from prompt_toolkit.search import SearchState
+from prompt_toolkit.layout.dimension import Dimension
 
 
 EASY_KEYWORDS = [
@@ -178,6 +181,24 @@ EASY_DOCS = {
 }
 
 
+def fuzzy_score(query, candidate):
+    query = query.lower()
+    candidate = candidate.lower()
+    if query == candidate:
+        return 100
+    if candidate.startswith(query):
+        return 80
+    if query in candidate:
+        return 60
+    score = 0
+    qi = 0
+    for ch in candidate:
+        if qi < len(query) and ch == query[qi]:
+            score += 10
+            qi += 1
+    return score if qi == len(query) else 0
+
+
 class EasyCompleter(Completer):
     def __init__(self, variables=None):
         self.variables = variables or []
@@ -187,12 +208,12 @@ class EasyCompleter(Completer):
         word = document.get_word_before_cursor(WORD=True)
         line = document.current_line
         stripped = line.strip()
-        lower_stripped = stripped.lower()
         lower_word = word.lower()
 
         if not stripped:
-            for kw in EASY_KEYWORDS:
-                if kw.startswith(lower_word):
+            scored = [(fuzzy_score(lower_word, kw), kw) for kw in EASY_KEYWORDS]
+            for score, kw in sorted(scored, reverse=True):
+                if score > 0:
                     yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""))
             return
 
@@ -200,42 +221,31 @@ class EasyCompleter(Completer):
         command = parts[0].lower() if parts else ""
 
         if command in ("say",):
-            if lower_stripped.endswith(" ") or lower_stripped.lower().startswith("say "):
-                for component in EASY_COMPONENTS:
-                    if lower_word in component.lower():
-                        yield Completion(component, start_position=-len(word) or 0, display=component, doc=EASY_DOCS.get(component, ""))
-                for color in EASY_COLORS:
-                    if lower_word in color.lower():
-                        yield Completion(color, start_position=-len(word) or 0, display=color, doc=EASY_DOCS.get(color, ""))
-                for var in self.variables:
-                    if lower_word in var.lower():
-                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+            if stripped.lower().endswith(" ") or stripped.lower().startswith("say "):
+                candidates = EASY_COMPONENTS + EASY_COLORS + list(self.variables)
+                scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
+                for score, cand in sorted(scored, reverse=True):
+                    if score > 0:
+                        doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc)
                 return
 
         if command == "set":
-            if len(parts) == 2:
-                suggestions = ["value"] + list(self.variables)
-                for sug in suggestions:
-                    if lower_word in sug.lower():
-                        yield Completion(sug, start_position=-len(word) or 0, display=sug, doc="Literal value or variable" if sug == "value" else "Variable")
-                return
-            elif len(parts) >= 3:
-                for var in self.variables:
-                    if lower_word in var.lower():
-                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
-                return
+            candidates = ["value"] + list(self.variables)
+            scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
+            for score, cand in sorted(scored, reverse=True):
+                if score > 0:
+                    doc = "Literal value or variable" if cand == "value" else "Variable"
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc)
+            return
 
         if command in ("add", "sub"):
-            if len(parts) == 2:
-                for var in self.variables:
-                    if lower_word in var.lower():
-                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
-                return
-            elif len(parts) >= 3:
-                for var in self.variables:
-                    if lower_word in var.lower():
-                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
-                return
+            candidates = list(self.variables)
+            scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
+            for score, cand in sorted(scored, reverse=True):
+                if score > 0:
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc="Variable")
+            return
 
         if command == "easy":
             if len(parts) >= 2:
@@ -244,14 +254,13 @@ class EasyCompleter(Completer):
                     yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", doc="Call an AI API")
                 return
 
-        if not command or command not in set(EASY_KEYWORDS):
-            all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
-            seen = set()
-            for opt in all_options:
-                if opt not in seen and lower_word in opt.lower():
-                    seen.add(opt)
-                    doc = EASY_DOCS.get(opt, "")
-                    yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=doc)
+        all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
+        scored = [(fuzzy_score(lower_word, opt), opt) for opt in all_options]
+        seen = set()
+        for score, opt in sorted(scored, reverse=True):
+            if opt not in seen and score > 0:
+                seen.add(opt)
+                yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=EASY_DOCS.get(opt, ""))
 
 
 class EasyLexer(Lexer):
@@ -371,51 +380,53 @@ class EasyLexer(Lexer):
 
 
 style = Style.from_dict({
-    "status": "bg:#000000 #ffffff",
-    "line-number": "#888888",
-    "line-number-active": "#ffff00",
-    "comment": "#666666",
-    "string": "#ffa500",
-    "keyword": "#00ffff",
-    "component-box": "#ff00ff",
-    "component-chat": "#00ff00",
-    "component-sidebar": "#ffff00",
-    "component-header": "#0000ff",
-    "component-footer": "#ff00ff",
-    "component-alert": "#ff0000",
-    "component-list": "#00ffff",
-    "component-table": "#00ffff",
-    "component-hr": "#888888",
-    "component-progress": "#00ff00",
-    "component-spinner": "#ffff00",
-    "component-input": "#00ffff",
-    "component-align": "#888888",
-    "component-padding": "#888888",
-    "component-width": "#888888",
-    "component-bg": "#888888",
+    "status": "bg:#1e1e1e #ffffff",
+    "line-number": "#858585",
+    "line-number-active": "#ffffff",
+    "comment": "#6a9955",
+    "string": "#ce9178",
+    "keyword": "#569cd6",
+    "component-box": "#c586c0",
+    "component-chat": "#4ec9b0",
+    "component-sidebar": "#dcdcaa",
+    "component-header": "#4fc1ff",
+    "component-footer": "#c586c0",
+    "component-alert": "#f44747",
+    "component-list": "#4ec9b0",
+    "component-table": "#4ec9b0",
+    "component-hr": "#858585",
+    "component-progress": "#4ec9b0",
+    "component-spinner": "#dcdcaa",
+    "component-input": "#4ec9b0",
+    "component-align": "#858585",
+    "component-padding": "#858585",
+    "component-width": "#858585",
+    "component-bg": "#858585",
     "style-bold": "bold",
-    "style-dim": "#666666",
+    "style-dim": "#858585",
     "style-italic": "italic",
     "style-underline": "underline",
     "style-blink": "blink",
     "style-reverse": "reverse",
-    "style-strikethrough": "#666666",
-    "color-green": "#00ff00",
-    "color-red": "#ff0000",
-    "color-blue": "#0000ff",
-    "color-yellow": "#ffff00",
-    "color-cyan": "#00ffff",
-    "color-magenta": "#ff00ff",
+    "style-strikethrough": "#858585",
+    "color-green": "#4ec9b0",
+    "color-red": "#f44747",
+    "color-blue": "#569cd6",
+    "color-yellow": "#dcdcaa",
+    "color-cyan": "#4ec9b0",
+    "color-magenta": "#c586c0",
     "color-white": "#ffffff",
-    "color-black": "#000000",
-    "completion-menu.completion": "bg:#000000 #ffffff",
-    "completion-menu.completion.current": "bg:#444444 #ffffff",
-    "completion-menu.meta.completion": "bg:#000000 #888888",
-    "completion-menu.meta.completion.current": "bg:#444444 #ffffff",
-    "scrollbar.background": "bg:#000000",
-    "scrollbar.button": "bg:#888888",
-    "toolbar": "bg:#000000 #ffffff",
-    "toolbar.status": "bg:#000000 #ffff00",
+    "color-black": "#858585",
+    "completion-menu.completion": "bg:#252526 #ffffff",
+    "completion-menu.completion.current": "bg:#094771 #ffffff",
+    "completion-menu.meta.completion": "bg:#252526 #858585",
+    "completion-menu.meta.completion.current": "bg:#094771 #ffffff",
+    "scrollbar.background": "bg:#1e1e1e",
+    "scrollbar.button": "bg:#858585",
+    "toolbar": "bg:#1e1e1e #cccccc",
+    "toolbar.status": "bg:#1e1e1e #ffffff",
+    "error": "#f44747",
+    "warning": "#dcdcaa",
 })
 
 
@@ -431,11 +442,13 @@ def edit_file(path):
 
     lexer = EasyLexer()
     variables = set()
+    errors = []
 
     def extract_variables():
         nonlocal variables
         variables = set()
-        for line in buffer.text.splitlines():
+        errors.clear()
+        for lineno, line in enumerate(buffer.text.splitlines(), start=1):
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
@@ -461,10 +474,13 @@ def edit_file(path):
             mode = "NAV"
         elif vi_state.input_mode == InputMode.REPLACE:
             mode = "REPLACE"
-        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {buffer.document.cursor_position_row + 1}, Col {buffer.document.cursor_position_col + 1} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | Type ? for help ")]
+        line = buffer.document.cursor_position_row + 1
+        col = buffer.document.cursor_position_col + 1
+        total = len(buffer.text.splitlines())
+        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | Ctrl+P Command Palette | Ctrl+F Find ")]
 
     def get_toolbar():
-        return [("class:toolbar", " Easy Lang Editor | Keywords: say set add sub easy if for while func return | Components: [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | Colors: :green: :red: :blue: :cyan: | Builtins: len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
+        return [("class:toolbar", " Easy Lang | Keywords: say set add sub easy if for while func return | Components: [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | Colors: :green: :red: :blue: :cyan: | Styles: [bold] [dim] [underline] [italic] | Builtins: len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -483,7 +499,7 @@ def edit_file(path):
     root_container = HSplit([
         Window(content=toolbar_control, height=1, style="class:toolbar"),
         VSplit([
-            Window(content=line_numbers_control, width=4, style="class:line-number"),
+            Window(content=line_numbers_control, width=5, style="class:line-number"),
             Window(content=editor_control, wrap_lines=True),
         ]),
         Window(content=statusbar_control, height=1, style="class:status"),
@@ -516,11 +532,19 @@ def edit_file(path):
 
     @kb.add("tab")
     def tab_complete(_):
-        from prompt_toolkit.key_binding.vi_state import ViState
         from prompt_toolkit.application import get_app
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_next()
+        else:
+            buffer.insert_text("    ")
+
+    @kb.add("s-tab")
+    def shift_tab(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_previous()
         else:
             app.current_buffer.start_completion(select_first=False)
 
@@ -565,10 +589,42 @@ def edit_file(path):
         from prompt_toolkit.application import get_app
         get_app().current_buffer.start_completion(select_first=False)
 
+    @kb.add("c-p")
+    def command_palette(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        app.layout.focus(command_palette_control)
+
+    @kb.add("c-f")
+    def find_command(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        app.layout.focus(search_control)
+
+    @kb.add("enter")
+    def smart_enter(_):
+        doc = buffer.document
+        line = doc.current_line
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            buffer.insert_text("\n")
+            return
+        indent = len(line) - len(stripped)
+        buffer.insert_text("\n" + " " * indent)
+        if stripped.endswith(":"):
+            buffer.insert_text("    ")
+
     from prompt_toolkit.application import Application
     from prompt_toolkit.vi_state import ViState
     global vi_state
     vi_state = ViState()
+
+    command_palette_control = FormattedTextControl(
+        lambda: [("class:toolbar", " Command Palette: type a command... ")]
+    )
+    search_control = FormattedTextControl(
+        lambda: [("class:toolbar", " Find: type to search... ")]
+    )
 
     application = Application(
         layout=Layout(root_container, focused_element=editor_control),
