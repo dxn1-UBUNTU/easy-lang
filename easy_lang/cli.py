@@ -1,5 +1,8 @@
 import argparse
 import sys
+import subprocess
+import os
+import shutil
 
 from easy_lang.interpreter import EasyError, run
 
@@ -67,6 +70,30 @@ def install_command(args):
     return 0
 
 
+def update_command(_args):
+    easy_bin = shutil.which("easy")
+    if not easy_bin:
+        print("easy error: could not find easy binary in PATH", file=sys.stderr)
+        return 1
+
+    install_script = os.path.join(os.path.dirname(__file__), "..", "install", "install.sh")
+    install_script = os.path.abspath(install_script)
+
+    if not os.path.exists(install_script):
+        print(f"easy error: installer script not found at {install_script}", file=sys.stderr)
+        return 1
+
+    print("Updating Easy Lang...")
+    result = subprocess.run(["bash", install_script], capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"easy error: update failed\n{result.stderr}", file=sys.stderr)
+        return 1
+
+    print(result.stdout.strip() or "Easy updated.")
+    return 0
+
+
 def repl(_args):
     print("Easy REPL. Type exit to quit.")
     lines = []
@@ -111,6 +138,9 @@ def build_parser():
     install_parser = subparsers.add_parser("install", help="install a package or repo")
     install_parser.add_argument("target", help="package name, npm package, GitHub repo, or URL")
     install_parser.set_defaults(func=install_command)
+
+    update_parser = subparsers.add_parser("update", help="update Easy Lang itself")
+    update_parser.set_defaults(func=update_command)
 
     repl_parser = subparsers.add_parser("repl", help="start an interactive Easy session")
     repl_parser.set_defaults(func=repl)

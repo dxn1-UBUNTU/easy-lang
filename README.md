@@ -370,6 +370,16 @@ easy repl
 python3 tests/smoke_test.py
 ```
 
+## Update
+
+Update Easy Lang itself:
+
+```bash
+easy update easy
+```
+
+This pulls the latest changes and reinstalls Easy in place.
+
 ## Install Anything
 
 `easy install` works as a universal installer.
@@ -394,3 +404,165 @@ easy install https://github.com/cli/cli
 ```
 
 Easy auto-detects the best installer for the target.
+
+## All Components
+
+### Box
+
+```easy
+say "hello world" [box] :green:
+say "double" [box:double] :cyan:
+say "rounded" [box:rounded] :green:
+say "bold" [box:bold] :magenta:
+```
+
+### Chat
+
+```easy
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
+```
+
+### Sidebar
+
+```easy
+say "status: online" [sidebar] :yellow:
+```
+
+### Header
+
+```easy
+say "My App" [header] :cyan:
+```
+
+### Footer
+
+```easy
+say "v1.0.0" [footer] :magenta:
+```
+
+### Alert
+
+```easy
+say "disk full" [alert] :red:
+say "check complete" [alert] :green:
+```
+
+### List
+
+```easy
+say "first item" [list] :green:
+say "second item" [list] :green:
+```
+
+### Horizontal Rule
+
+```easy
+say "──────────────────────────────" [hr]
+```
+
+### Progress Bar
+
+```easy
+say "progress" [progress:75] [width:40] :cyan:
+```
+
+### Spinner
+
+```easy
+say "loading" [spinner] :yellow:
+```
+
+### Input Prompt
+
+```easy
+say "Enter name:" [input:prompt] :cyan:
+```
+
+### Table
+
+```easy
+say "name | age | city" [table] :cyan:
+say "John | 25  | NYC" [table] :white:
+say "Jane | 30  | LA" [table] :white:
+```
+
+## All Colors
+
+- `:green:` `:red:` `:blue:` `:yellow:`
+- `:cyan:` `:magenta:` `:white:` `:black:`
+- `:bright_black:` `:bright_red:` `:bright_green:` `:bright_yellow:`
+- `:bright_blue:` `:bright_magenta:` `:bright_cyan:` `:bright_white:`
+
+## All Styles
+
+- `[bold]` `[dim]` `[italic]` `[underline]`
+- `[blink]` `[reverse]` `[strikethrough]`
+
+## Layout
+
+```easy
+say "centered" [align:center] [box] :cyan:
+say "right" [align:right] :yellow:
+say "padded" [padding:2] [box] :white:
+say "fixed width" [width:40] [box] :green:
+say "blue bg" [bg:blue] :white:
+```
+
+## All Built-in Functions
+
+### String
+
+- `len(text)`
+- `upper(text)`
+- `lower(text)`
+- `trim(text)`
+- `split(text, sep)`
+- `join(list, sep)`
+- `replace(text, old, new)`
+- `contains(text, sub)`
+- `startswith(text, sub)`
+- `endswith(text, sub)`
+
+### Math
+
+- `math("expr")` — evaluate math expressions
+- `random(min, max)`
+- `abs(n)`
+- `min(a, b)`
+- `max(a, b)`
+- `round(n)`
+- `sqrt(n)`
+- `pow(a, b)`
+
+### Date & Time
+
+- `now()` — ISO timestamp
+- `date()` — YYYY-MM-DD
+- `time()` — HH:MM:SS
+- `sleep(seconds)`
+
+### File I/O
+
+- `read(path)`
+- `write(path, content)`
+- `append(path, content)`
+- `exists(path)`
+- `delete(path)`
+- `listdir(path)`
+
+### System
+
+- `exec(command)`
+- `env(variable)`
+
+### Crypto & Encoding
+
+- `hash(text, algo)`
+- `base64(text)`
+- `decode(base64_text)`
+
+### Network
+
+- `http(url, method)`
+- `json(text)` — parse JSON

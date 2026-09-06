@@ -1,42 +1,51 @@
 #!/usr/bin/env easy
-say "Easy Lang Demo" [header] :cyan:
-say "TUI + API + Builtins" [box:rounded] :green:
+# Comprehensive Easy Lang Demo
+
+say "Easy Lang" [header] :cyan:
+say "All Features Demo" [box:rounded] :green:
 
 say "──────────────────────────────" [hr]
 
-say "AI API Call" [alert] :yellow:
+say "API Calls" [header] :magenta:
 easy [api-call]<http>(url="https://api.github.com", method=GET)
 say api_result [box] :white:
 
 say "──────────────────────────────" [hr]
 
-say "Builtins" [header] :magenta:
-say len("hello world") [box] :cyan:
-say upper("easy lang") [box] :green:
-say lower("EASY LANG") [box] :yellow:
+say "String Builtins" [header] :blue:
+set text "hello world"
+say len(text) [box] :cyan:
+say upper(text) [box] :green:
+say lower(text) [box] :yellow:
 say trim("  spaced  ") [box] :white:
 say replace("hello world", "world", "Easy") [box] :blue:
 say contains("hello world", "world") [box] :green:
 say startswith("hello world", "hello") [box] :cyan:
 say endswith("hello world", "world") [box] :magenta:
+say split("a,b,c", ",") [box] :red:
 
 say "──────────────────────────────" [hr]
 
-say "Math & Random" [header] :blue:
-say math("2 + 2") [box] :green:
-say math("sqrt(16)") [box] :cyan:
+say "Math" [header] :green:
+say math("2 + 2") [box] :cyan:
+say math("sqrt(16)") [box] :green:
+say math("pow(2, 8)") [box] :yellow:
 say random(1, 100) [box] :red:
+say abs(-42) [box] :magenta:
+say min(10, 20) [box] :blue:
+say max(10, 20) [box] :cyan:
+say round(3.14) [box] :green:
 
 say "──────────────────────────────" [hr]
 
 say "Date & Time" [header] :yellow:
-say now() [box] :green:
-say date() [box] :cyan:
-say time() [box] :magenta:
+say now() [box] :cyan:
+say date() [box] :green:
+say time() [box] :yellow:
 
 say "──────────────────────────────" [hr]
 
-say "File I/O" [header] :green:
+say "File I/O" [header] :blue:
 set filename "demo_output.txt"
 write(filename, "Hello from Easy Lang!")
 say read(filename) [box] :white:
@@ -53,9 +62,40 @@ say env("USER") [box] :yellow:
 
 say "──────────────────────────────" [hr]
 
-say "Chat Demo" [header] :cyan:
+say "Crypto & Encoding" [header] :magenta:
+set secret "my-secret"
+say hash(secret, "sha256") [box] :cyan:
+say base64(secret) [box] :green:
+say decode(base64(secret)) [box] :yellow:
+
+say "──────────────────────────────" [hr]
+
+say "Chat" [header] :cyan:
 say "user: hello" [chat:left] :cyan:
 say "bot: hi there" [chat:right] :green:
+say "user: how are you?" [chat:left] :cyan:
+say "bot: doing great!" [chat:right] :green:
+
+say "──────────────────────────────" [hr]
+
+say "Table" [header] :blue:
+say "name | age | city" [table] :cyan:
+say "John | 25  | NYC" [table] :white:
+say "Jane | 30  | LA" [table] :white:
+say "Bob  | 22  | SF" [table] :white:
+
+say "──────────────────────────────" [hr]
+
+say "Progress" [header] :green:
+say "loading" [progress:25] [width:40] :yellow:
+say "halfway" [progress:50] [width:40] :cyan:
+say "almost" [progress:75] [width:40] :magenta:
+say "done" [progress:100] [width:40] :green:
+
+say "──────────────────────────────" [hr]
+
+say "Input" [header] :red:
+say "What is your name?" [input:prompt] :cyan:
 
 say "──────────────────────────────" [hr]
 
