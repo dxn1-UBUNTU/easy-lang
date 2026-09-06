@@ -3,7 +3,7 @@ import re
 from prompt_toolkit import PromptSession
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout import Window, HSplit, VSplit, FormattedTextControl, Layout
+from prompt_toolkit.layout import Window, HSplit, VSplit, FormattedTextControl, Layout, FloatContainer, Float
 from prompt_toolkit.layout.controls import BufferControl
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.completion import Completer, Completion
@@ -13,6 +13,8 @@ from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.search import SearchState
 from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.enums import DEFAULT_BUFFER
 
 
 EASY_KEYWORDS = [
@@ -214,7 +216,7 @@ class EasyCompleter(Completer):
             scored = [(fuzzy_score(lower_word, kw), kw) for kw in EASY_KEYWORDS]
             for score, kw in sorted(scored, reverse=True):
                 if score > 0:
-                    yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""))
+                    yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
             return
 
         parts = stripped.split()
@@ -227,7 +229,7 @@ class EasyCompleter(Completer):
                 for score, cand in sorted(scored, reverse=True):
                     if score > 0:
                         doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
-                        yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc)
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc, style="bg:#1e1e1e #ffffff")
                 return
 
         if command == "set":
@@ -236,7 +238,7 @@ class EasyCompleter(Completer):
             for score, cand in sorted(scored, reverse=True):
                 if score > 0:
                     doc = "Literal value or variable" if cand == "value" else "Variable"
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc)
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc, style="bg:#1e1e1e #ffffff")
             return
 
         if command in ("add", "sub"):
@@ -244,14 +246,14 @@ class EasyCompleter(Completer):
             scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
             for score, cand in sorted(scored, reverse=True):
                 if score > 0:
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc="Variable")
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc="Variable", style="bg:#1e1e1e #ffffff")
             return
 
         if command == "easy":
             if len(parts) >= 2:
                 sub = parts[1].lower()
                 if sub.startswith("[api"):
-                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", doc="Call an AI API")
+                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", doc="Call an AI API", style="bg:#1e1e1e #ffffff")
                 return
 
         all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
@@ -260,7 +262,7 @@ class EasyCompleter(Completer):
         for score, opt in sorted(scored, reverse=True):
             if opt not in seen and score > 0:
                 seen.add(opt)
-                yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=EASY_DOCS.get(opt, ""))
+                yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=EASY_DOCS.get(opt, ""), style="bg:#1e1e1e #ffffff")
 
 
 class EasyLexer(Lexer):
@@ -439,16 +441,15 @@ def edit_file(path):
 
     buffer = Buffer()
     buffer.text = text
+    buffer.auto_suggest = AutoSuggestFromHistory()
 
     lexer = EasyLexer()
     variables = set()
-    errors = []
 
     def extract_variables():
         nonlocal variables
         variables = set()
-        errors.clear()
-        for lineno, line in enumerate(buffer.text.splitlines(), start=1):
+        for line in buffer.text.splitlines():
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
@@ -477,10 +478,10 @@ def edit_file(path):
         line = buffer.document.cursor_position_row + 1
         col = buffer.document.cursor_position_col + 1
         total = len(buffer.text.splitlines())
-        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | Ctrl+P Command Palette | Ctrl+F Find ")]
+        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment ")]
 
     def get_toolbar():
-        return [("class:toolbar", " Easy Lang | Keywords: say set add sub easy if for while func return | Components: [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | Colors: :green: :red: :blue: :cyan: | Styles: [bold] [dim] [underline] [italic] | Builtins: len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
+        return [("class:toolbar", " Easy Lang | say set add sub easy if for while func return | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -509,9 +510,12 @@ def edit_file(path):
 
     @kb.add("c-s")
     def save(_):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(buffer.text)
-        on_text_changed(None)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(buffer.text)
+            on_text_changed(None)
+        except Exception as e:
+            print(f"Error saving: {e}", file=sys.stderr)
 
     @kb.add("c-q")
     def quit(_):
@@ -589,18 +593,6 @@ def edit_file(path):
         from prompt_toolkit.application import get_app
         get_app().current_buffer.start_completion(select_first=False)
 
-    @kb.add("c-p")
-    def command_palette(_):
-        from prompt_toolkit.application import get_app
-        app = get_app()
-        app.layout.focus(command_palette_control)
-
-    @kb.add("c-f")
-    def find_command(_):
-        from prompt_toolkit.application import get_app
-        app = get_app()
-        app.layout.focus(search_control)
-
     @kb.add("enter")
     def smart_enter(_):
         doc = buffer.document
@@ -614,17 +606,54 @@ def edit_file(path):
         if stripped.endswith(":"):
             buffer.insert_text("    ")
 
+    @kb.add("c-z")
+    def undo(_):
+        buffer.undo()
+
+    @kb.add("c-y")
+    def redo(_):
+        buffer.redo()
+
+    @kb.add("c-d")
+    def delete_line(_):
+        doc = buffer.document
+        start = doc.get_start_of_line_position()
+        end = doc.get_end_of_line_position()
+        buffer.delete(start, end + 1)
+
+    @kb.add("c-a")
+    def select_all(_):
+        buffer.selection.set_document(buffer.document)
+
+    @kb.add("c-c")
+    def copy(_):
+        data = buffer.selection.copy()
+        if data:
+            from prompt_toolkit.clipboard import Clipboard
+            clipboard = Clipboard()
+            clipboard.set_data(data)
+
+    @kb.add("c-v")
+    def paste(_):
+        from prompt_toolkit.clipboard import Clipboard
+        clipboard = Clipboard()
+        data = clipboard.get_data()
+        if data:
+            buffer.insert_text(data)
+
+    @kb.add("c-x")
+    def cut(_):
+        data = buffer.selection.copy()
+        if data:
+            buffer.delete_selection()
+            from prompt_toolkit.clipboard import Clipboard
+            clipboard = Clipboard()
+            clipboard.set_data(data)
+
     from prompt_toolkit.application import Application
     from prompt_toolkit.vi_state import ViState
     global vi_state
     vi_state = ViState()
-
-    command_palette_control = FormattedTextControl(
-        lambda: [("class:toolbar", " Command Palette: type a command... ")]
-    )
-    search_control = FormattedTextControl(
-        lambda: [("class:toolbar", " Find: type to search... ")]
-    )
 
     application = Application(
         layout=Layout(root_container, focused_element=editor_control),
