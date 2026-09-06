@@ -17,6 +17,12 @@ EASY_KEYWORDS = [
     "set",
     "add",
     "sub",
+    "easy",
+    "if",
+    "for",
+    "while",
+    "func",
+    "return",
 ]
 
 EASY_COLORS = [
@@ -28,6 +34,14 @@ EASY_COLORS = [
     ":magenta:",
     ":white:",
     ":black:",
+    ":bright_black:",
+    ":bright_red:",
+    ":bright_green:",
+    ":bright_yellow:",
+    ":bright_blue:",
+    ":bright_magenta:",
+    ":bright_cyan:",
+    ":bright_white:",
 ]
 
 EASY_COMPONENTS = [
@@ -58,11 +72,48 @@ EASY_COMPONENTS = [
     "[bg:blue]",
 ]
 
+EASY_BUILTINS = [
+    "len(",
+    "upper(",
+    "lower(",
+    "trim(",
+    "split(",
+    "join(",
+    "replace(",
+    "contains(",
+    "startswith(",
+    "endswith(",
+    "math(",
+    "random(",
+    "now(",
+    "date(",
+    "time(",
+    "sleep(",
+    "read(",
+    "write(",
+    "append(",
+    "exists(",
+    "delete(",
+    "listdir(",
+    "exec(",
+    "env(",
+    "hash(",
+    "base64(",
+    "decode(",
+    "http(",
+]
+
 EASY_DOCS = {
     "say": "say \"text\" [component] :color: - Print text to terminal",
     "set": "set name value - Store a value in a variable",
     "add": "add name value - Add to a number variable",
     "sub": "sub name value - Subtract from a number variable",
+    "easy": "easy [api-call]<service>(...) - Call external services",
+    "if": "if condition - Conditional block",
+    "for": "for item in list - Loop over items",
+    "while": "while condition - Loop while condition is true",
+    "func": "func name(args) - Define a function",
+    "return": "return value - Return from function",
     "[box]": "[box] - Wrap text in a single-line box",
     "[box:double]": "[box:double] - Wrap text in a double-line box",
     "[box:rounded]": "[box:rounded] - Wrap text in a rounded box",
@@ -96,6 +147,34 @@ EASY_DOCS = {
     ":magenta:": ":magenta: - Magenta foreground color",
     ":white:": ":white: - White foreground color",
     ":black:": ":black: - Black foreground color",
+    "len(": "len(text) - Get string length",
+    "upper(": "upper(text) - Convert to uppercase",
+    "lower(": "lower(text) - Convert to lowercase",
+    "trim(": "trim(text) - Remove whitespace",
+    "split(": "split(text, sep) - Split string into list",
+    "join(": "join(list, sep) - Join list into string",
+    "replace(": "replace(text, old, new) - Replace substring",
+    "contains(": "contains(text, sub) - Check if text contains substring",
+    "startswith(": "startswith(text, sub) - Check if text starts with substring",
+    "endswith(": "endswith(text, sub) - Check if text ends with substring",
+    "math(": "math(\"expr\") - Evaluate math expression",
+    "random(": "random(min, max) - Random number",
+    "now(": "now() - Current ISO timestamp",
+    "date(": "date() - Current date YYYY-MM-DD",
+    "time(": "time() - Current time HH:MM:SS",
+    "sleep(": "sleep(seconds) - Pause execution",
+    "read(": "read(path) - Read file contents",
+    "write(": "write(path, content) - Write to file",
+    "append(": "append(path, content) - Append to file",
+    "exists(": "exists(path) - Check if file exists",
+    "delete(": "delete(path) - Delete file",
+    "listdir(": "listdir(path) - List directory contents",
+    "exec(": "exec(command) - Execute shell command",
+    "env(": "env(variable) - Get environment variable",
+    "hash(": "hash(text, algo) - Hash text",
+    "base64(": "base64(text) - Encode to base64",
+    "decode(": "decode(base64_text) - Decode from base64",
+    "http(": "http(url, method) - Make HTTP request",
 }
 
 
@@ -109,10 +188,12 @@ class EasyCompleter(Completer):
         line = document.current_line
         stripped = line.strip()
         lower_stripped = stripped.lower()
+        lower_word = word.lower()
 
         if not stripped:
             for kw in EASY_KEYWORDS:
-                yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""))
+                if kw.startswith(lower_word):
+                    yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""))
             return
 
         parts = stripped.split()
@@ -121,31 +202,56 @@ class EasyCompleter(Completer):
         if command in ("say",):
             if lower_stripped.endswith(" ") or lower_stripped.lower().startswith("say "):
                 for component in EASY_COMPONENTS:
-                    yield Completion(component, start_position=-len(word) or 0, display=component, doc=EASY_DOCS.get(component, ""))
+                    if lower_word in component.lower():
+                        yield Completion(component, start_position=-len(word) or 0, display=component, doc=EASY_DOCS.get(component, ""))
                 for color in EASY_COLORS:
-                    yield Completion(color, start_position=-len(word) or 0, display=color, doc=EASY_DOCS.get(color, ""))
+                    if lower_word in color.lower():
+                        yield Completion(color, start_position=-len(word) or 0, display=color, doc=EASY_DOCS.get(color, ""))
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                    if lower_word in var.lower():
+                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                return
 
         if command == "set":
             if len(parts) == 2:
-                yield Completion("value", start_position=-len(word) or 0, display="value", doc="Literal value or variable")
+                suggestions = ["value"] + list(self.variables)
+                for sug in suggestions:
+                    if lower_word in sug.lower():
+                        yield Completion(sug, start_position=-len(word) or 0, display=sug, doc="Literal value or variable" if sug == "value" else "Variable")
+                return
             elif len(parts) >= 3:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                    if lower_word in var.lower():
+                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                return
 
         if command in ("add", "sub"):
             if len(parts) == 2:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                    if lower_word in var.lower():
+                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                return
             elif len(parts) >= 3:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                    if lower_word in var.lower():
+                        yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
+                return
+
+        if command == "easy":
+            if len(parts) >= 2:
+                sub = parts[1].lower()
+                if sub.startswith("[api"):
+                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", doc="Call an AI API")
+                return
 
         if not command or command not in set(EASY_KEYWORDS):
-            for kw in EASY_KEYWORDS:
-                if kw.startswith(word):
-                    yield Completion(kw, start_position=-len(word), display=kw, doc=EASY_DOCS.get(kw, ""))
+            all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
+            seen = set()
+            for opt in all_options:
+                if opt not in seen and lower_word in opt.lower():
+                    seen.add(opt)
+                    doc = EASY_DOCS.get(opt, "")
+                    yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=doc)
 
 
 class EasyLexer(Lexer):
@@ -355,10 +461,10 @@ def edit_file(path):
             mode = "NAV"
         elif vi_state.input_mode == InputMode.REPLACE:
             mode = "REPLACE"
-        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {buffer.document.cursor_position_row + 1}, Col {buffer.document.cursor_position_col + 1} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment ")]
+        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {buffer.document.cursor_position_row + 1}, Col {buffer.document.cursor_position_col + 1} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | Type ? for help ")]
 
     def get_toolbar():
-        return [("class:toolbar", " Easy Lang Editor | Components: [box] [chat:left] [header] [sidebar] [footer] [alert] [list] [table] [progress:50] [spinner] | Colors: :green: :red: :blue: :cyan: | Styles: [bold] [dim] [underline] [italic] ")]
+        return [("class:toolbar", " Easy Lang Editor | Keywords: say set add sub easy if for while func return | Components: [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | Colors: :green: :red: :blue: :cyan: | Builtins: len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
