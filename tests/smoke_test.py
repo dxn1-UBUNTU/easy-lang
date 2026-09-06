@@ -17,6 +17,17 @@ def main():
     assert result.returncode == 0, result.stderr
     assert result.stdout == "hello from easy\n15\n"
 
+    direct_result = subprocess.run(
+        ["python3", "-m", "easy_lang.cli", "examples/hello.easy"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert direct_result.returncode == 0, direct_result.stderr
+    assert direct_result.stdout == "hello from easy\n15\n"
+
     check_result = subprocess.run(
         ["python3", "-m", "easy_lang.cli", "check", "examples/hello.easy"],
         cwd=PROJECT_ROOT,

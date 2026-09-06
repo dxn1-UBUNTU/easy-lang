@@ -1,3 +1,4 @@
+#!/usr/bin/env easy
 say "hello from easy"
 set score 10
 add score 5

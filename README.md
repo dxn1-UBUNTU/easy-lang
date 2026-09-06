@@ -28,11 +28,32 @@ hello
 
 ## Run It
 
+Install Easy:
+
 ```bash
-python3 -m easy_lang.cli run examples/hello.easy
+curl -fsSL https://raw.githubusercontent.com/dxn1-UBUNTU/easy-lang/main/install/install.sh | bash
 ```
 
-Or install the CLI locally:
+Then run an Easy file:
+
+```bash
+easy run examples/hello.easy
+```
+
+Easy files can also run directly when they start with this line:
+
+```easy
+#!/usr/bin/env easy
+```
+
+Then:
+
+```bash
+chmod +x examples/hello.easy
+./examples/hello.easy
+```
+
+For repo development:
 
 ```bash
 python3 -m pip install -e .
