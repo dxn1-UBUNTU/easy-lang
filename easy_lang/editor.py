@@ -493,7 +493,17 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
 
     line_numbers_control = FormattedTextControl(get_line_numbers)
-    editor_control = BufferControl(buffer=buffer, lexer=lexer, completer=completer, complete_while_typing=True)
+    editor_kwargs = {
+        "buffer": buffer,
+        "lexer": lexer,
+    }
+    if "completer" in BufferControl.__init__.__code__.co_varnames:
+        editor_kwargs["completer"] = completer
+    else:
+        buffer.completer = completer
+    if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
+        editor_kwargs["complete_while_typing"] = True
+    editor_control = BufferControl(**editor_kwargs)
     statusbar_control = FormattedTextControl(get_statusbar)
     toolbar_control = FormattedTextControl(get_toolbar)
 
@@ -522,7 +532,7 @@ def edit_file(path):
         from prompt_toolkit.application import get_app
         get_app().exit()
 
-    @kb.add("c-slash")
+    @kb.add("c-_")
     def comment(_):
         doc = buffer.document
         line = doc.current_line
@@ -651,7 +661,8 @@ def edit_file(path):
             clipboard.set_data(data)
 
     from prompt_toolkit.application import Application
-    from prompt_toolkit.vi_state import ViState
+    from prompt_toolkit.key_binding.vi_state import ViState
+    from prompt_toolkit.enums import EditingMode
     global vi_state
     vi_state = ViState()
 
@@ -662,7 +673,7 @@ def edit_file(path):
         full_screen=True,
         mouse_support=True,
         after_render=on_text_changed,
-        vi_mode=True,
+        editing_mode=EditingMode.VI,
     )
 
     on_text_changed(None)

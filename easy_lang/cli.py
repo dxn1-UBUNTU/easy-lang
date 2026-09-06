@@ -70,7 +70,10 @@ def install_command(args):
     return 0
 
 
-def update_command(_args):
+def update_command(args):
+    if getattr(args, "target", None) != "easy":
+        print("easy error: use 'easy update easy' to update Easy Lang", file=sys.stderr)
+        return 1
     easy_bin = shutil.which("easy")
     if not easy_bin:
         print("easy error: could not find easy binary in PATH", file=sys.stderr)
@@ -140,6 +143,7 @@ def build_parser():
     install_parser.set_defaults(func=install_command)
 
     update_parser = subparsers.add_parser("update", help="update Easy Lang itself")
+    update_parser.add_argument("target", choices=["easy"], help="what to update")
     update_parser.set_defaults(func=update_command)
 
     repl_parser = subparsers.add_parser("repl", help="start an interactive Easy session")
