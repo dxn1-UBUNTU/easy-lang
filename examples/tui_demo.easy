@@ -1,5 +1,8 @@
 #!/usr/bin/env easy
-say "hello world" [box] :green:
-set score 10
-add score 5
-say score [box] :cyan:
+say "Chat Demo" [header] :cyan:
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
+say "system: online" [sidebar] :yellow:
+say "warning: low disk" [alert] :red:
+say "main content here" [box] :white:
+say "footer info" [footer] :magenta:

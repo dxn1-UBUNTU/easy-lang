@@ -27,6 +27,16 @@ EASY_COLORS = [
     ":black:",
 ]
 
+EASY_COMPONENTS = [
+    "[box]",
+    "[chat:left]",
+    "[chat:right]",
+    "[sidebar]",
+    "[header]",
+    "[footer]",
+    "[alert]",
+]
+
 
 class EasyCompleter(Completer):
     def __init__(self, variables=None):
@@ -49,8 +59,8 @@ class EasyCompleter(Completer):
 
         if command in ("say",):
             if lower_stripped.endswith(" ") or lower_stripped.lower().startswith("say "):
-                if "[box]" not in stripped and not any(stripped.endswith(c) for c in EASY_COLORS):
-                    yield Completion("[box]", start_position=-len(word) or 0)
+                for component in EASY_COMPONENTS:
+                    yield Completion(component, start_position=-len(word) or 0)
                 for color in EASY_COLORS:
                     yield Completion(color, start_position=-len(word) or 0)
                 for var in self.variables:
@@ -134,9 +144,23 @@ class EasyLexer(Lexer):
                 if color_found:
                     continue
 
-                if line[i:i+6] == "[box]":
-                    tokens.append(("class:box", "[box]"))
-                    i += 6
+                component_found = False
+                component_map = [
+                    ("[box]", "class:component-box", 6),
+                    ("[chat:left]", "class:component-chat", 11),
+                    ("[chat:right]", "class:component-chat", 12),
+                    ("[sidebar]", "class:component-sidebar", 9),
+                    ("[header]", "class:component-header", 8),
+                    ("[footer]", "class:component-footer", 8),
+                    ("[alert]", "class:component-alert", 7),
+                ]
+                for component, style, length in component_map:
+                    if line[i:i+length].lower() == component:
+                        tokens.append((style, component))
+                        i += length
+                        component_found = True
+                        break
+                if component_found:
                     continue
 
                 j = i
@@ -160,7 +184,12 @@ style = Style.from_dict({
     "comment": "#666666",
     "string": "#ffa500",
     "keyword": "#00ffff",
-    "box": "#ff00ff",
+    "component-box": "#ff00ff",
+    "component-chat": "#00ff00",
+    "component-sidebar": "#ffff00",
+    "component-header": "#0000ff",
+    "component-footer": "#ff00ff",
+    "component-alert": "#ff0000",
     "color-green": "#00ff00",
     "color-red": "#ff0000",
     "color-blue": "#0000ff",

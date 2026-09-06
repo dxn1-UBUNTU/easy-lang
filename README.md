@@ -26,36 +26,69 @@ Building TUIs in the terminal usually means:
 - Manually calculating box widths
 - Fighting with terminal compatibility
 
-Easy Lang removes all of that. It gives you `[box]` and `:color:` out of the box so you can focus on the interface, not the implementation.
+Easy Lang removes all of that. It gives you `[box]`, `[chat]`, `[sidebar]`, `[header]`, `[footer]`, and `[alert]` out of the box so you can focus on the interface, not the implementation.
 
-## Syntax
+## Components
 
-### `say`
-
-Print text to the terminal.
+### Box
 
 ```easy
-say "hello"
-say "world" [box]
-say "error" :red:
-say "success" [box] :green:
+say "hello world" [box] :green:
 ```
 
-### Variables
+Output:
 
-Store and reuse values.
+```text
+┌──────────────┐
+│ hello world  │
+└──────────────┘
+```
+
+### Chat
+
+Left or right aligned chat bubbles.
 
 ```easy
-set name "Easy Lang"
-say name [box] :cyan:
-
-set score 0
-add score 10
-sub score 3
-say score [box] :yellow:
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
 ```
 
-### Colors
+### Sidebar
+
+A vertical sidebar panel.
+
+```easy
+say "status: online" [sidebar] :yellow:
+```
+
+### Header
+
+A bold header bar.
+
+```easy
+say "My App" [header] :cyan:
+```
+
+### Footer
+
+A bold footer bar.
+
+```easy
+say "v1.0.0" [footer] :magenta:
+```
+
+### Alert
+
+A warning or error alert.
+
+```easy
+say "disk full" [alert] :red:
+say "check complete" [alert] :green:
+```
+
+## Colors
+
+All components support colors:
 
 - `:green:`
 - `:red:`
@@ -66,38 +99,28 @@ say score [box] :yellow:
 - `:white:`
 - `:black:`
 
-### Boxes
-
-Add `[box]` to any `say` command to wrap text in a clean border.
+## Full Example
 
 ```easy
-say "stats" [box] :cyan:
-say "level 1" [box]
+say "Chat Demo" [header] :cyan:
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
+say "status: online" [sidebar] :yellow:
+say "warning: low disk" [alert] :red:
+say "main content here" [box] :white:
+say "footer info" [footer] :magenta:
 ```
 
-## Examples
-
-### Greeting
+## Variables
 
 ```easy
-say "hello world" [box] :green:
-```
+set name "Easy Lang"
+say name [box] :cyan:
 
-### Scoreboard
-
-```easy
 set score 0
 add score 10
+sub score 3
 say score [box] :yellow:
-```
-
-### Status panel
-
-```easy
-say "System Status" [box] :cyan:
-say "Online" [box] :green:
-say "CPU: 42%" [box]
-say "MEM: 1.2GB" [box]
 ```
 
 ## Install
@@ -137,7 +160,7 @@ easy edit examples/hello.easy
 - **Ctrl+S** to save
 - **Ctrl+Q** to quit
 
-Autocomplete knows Easy syntax: keywords, `[box]`, colors, and variables as you define them.
+Autocomplete knows Easy syntax: keywords, components, colors, and variables as you define them.
 
 ## Direct execution
 
