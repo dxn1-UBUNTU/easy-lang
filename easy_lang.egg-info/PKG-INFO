@@ -1,3 +1,11 @@
+Metadata-Version: 2.4
+Name: easy-lang
+Version: 0.1.0
+Summary: A tiny beginner-friendly coding language.
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+
 # Easy
 
 Easy is a tiny beginner-friendly coding language.

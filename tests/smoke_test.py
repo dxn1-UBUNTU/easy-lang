@@ -7,7 +7,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 def main():
     result = subprocess.run(
-        ["python3", "easy.py", "examples/hello.easy"],
+        ["python3", "-m", "easy_lang.cli", "run", "examples/hello.easy"],
         cwd=PROJECT_ROOT,
         text=True,
         capture_output=True,
@@ -16,6 +16,17 @@ def main():
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == "hello from easy\n15\n"
+
+    check_result = subprocess.run(
+        ["python3", "-m", "easy_lang.cli", "check", "examples/hello.easy"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert check_result.returncode == 0, check_result.stderr
+    assert check_result.stdout == "ok\n"
     print("smoke test passed")
 
 

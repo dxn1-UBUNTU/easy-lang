@@ -1,0 +1,13 @@
+{
+  "files.associations": {
+    "*.easy": "plaintext"
+  },
+  "editor.quickSuggestions": {
+    "comments": "off",
+    "strings": "on",
+    "other": "on"
+  },
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "python3"
+}

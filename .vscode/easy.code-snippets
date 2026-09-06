@@ -1,0 +1,26 @@
+{
+  "say": {
+    "scope": "plaintext",
+    "prefix": "say",
+    "body": "say \"$1\"",
+    "description": "Print text or a variable"
+  },
+  "set": {
+    "scope": "plaintext",
+    "prefix": "set",
+    "body": "set ${1:name} ${2:value}",
+    "description": "Store a value"
+  },
+  "add": {
+    "scope": "plaintext",
+    "prefix": "add",
+    "body": "add ${1:name} ${2:value}",
+    "description": "Add to a number"
+  },
+  "sub": {
+    "scope": "plaintext",
+    "prefix": "sub",
+    "body": "sub ${1:name} ${2:value}",
+    "description": "Subtract from a number"
+  }
+}
