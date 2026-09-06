@@ -7,7 +7,7 @@ say "All Features Demo" [box:rounded] :green:
 say "──────────────────────────────" [hr]
 
 say "API Calls" [header] :magenta:
-easy [api-call]<http>(url="https://api.github.com", method=GET)
+easy [api-call]<http>(url="https://jsonplaceholder.typicode.com/todos/1", method=GET)
 say api_result [box] :white:
 
 say "──────────────────────────────" [hr]

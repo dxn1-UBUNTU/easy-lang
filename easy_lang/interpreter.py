@@ -104,7 +104,10 @@ def parse_value(raw, memory):
     try:
         return int(raw)
     except ValueError:
-        raise EasyError(f"unknown value: {raw}")
+        try:
+            return float(raw)
+        except ValueError:
+            return raw
 
 
 def parse_tags(raw):
@@ -230,26 +233,100 @@ def parse_color(raw):
     return color_code, raw
 
 
+def eval_builtins_in_string(text, memory):
+    pattern = re.compile(r"([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^()]*)\)")
+
+    def split_args(args_str):
+        args = []
+        current = ""
+        in_quote = False
+        for ch in args_str:
+            if ch == '"':
+                in_quote = not in_quote
+                current += ch
+            elif ch == ',' and not in_quote:
+                args.append(current.strip())
+                current = ""
+            else:
+                current += ch
+        if current.strip():
+            args.append(current.strip())
+        return args
+
+    def find_builtin_match(text):
+        matches = []
+        i = 0
+        while i < len(text):
+            if text[i] == '"':
+                i += 1
+                while i < len(text) and text[i] != '"':
+                    i += 1
+                i += 1
+                continue
+            m = re.match(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', text[i:])
+            if not m:
+                i += 1
+                continue
+            name_start = i + m.start(1)
+            open_pos = i + m.end() - 1
+            depth = 1
+            close_pos = open_pos + 1
+            while close_pos < len(text) and depth > 0:
+                if text[close_pos] == '(':
+                    depth += 1
+                elif text[close_pos] == ')':
+                    depth -= 1
+                close_pos += 1
+            if depth == 0:
+                matches.append((name_start, close_pos, text[name_start:close_pos]))
+            i = open_pos + 1
+        if not matches:
+            return None
+        return min(matches, key=lambda m: m[1] - m[0])
+
+    prev = None
+    result = text
+    while prev != result:
+        prev = result
+        match = find_builtin_match(result)
+        if not match:
+            break
+        name_start, end, full_match = match
+        name = result[name_start:result.index('(', name_start)].strip()
+        args_str = result[result.index('(', name_start)+1:end-1]
+        args = split_args(args_str)
+        try:
+            replacement = str(builtin(name, args, memory))
+            result = result[:name_start] + replacement + result[end:]
+        except EasyError:
+            pass
+    return result
+
+
 def parse_say_args(raw, memory):
     raw = raw.strip()
     color_code, raw = parse_color(raw)
     component = parse_tags(raw)
     raw = strip_tags(raw)
+    raw = eval_builtins_in_string(raw, memory)
     value = parse_value(raw, memory)
     return str(value), component, color_code
 
 
-def format_border(text, style_name="single", width=None):
+def format_border(text, style_name="single", width=None, padding=1):
     visible = strip_ansi(text)
     width = width or len(visible)
     tl, h, tr, v, bl, h2, br = BORDERS.get(style_name, BORDERS["single"])
-    top = f"{tl}{h * (width + 2)}{tr}"
-    middle = f"{v} {text} {v}"
-    bottom = f"{bl}{h2 * (width + 2)}{br}"
+    inner_width = width + padding * 2
+    top = f"{tl}{h * (inner_width + 2)}{tr}"
+    middle = f"{v}{' ' * padding}{text}{' ' * padding} {v}"
+    bottom = f"{bl}{h2 * (inner_width + 2)}{br}"
     return [top, middle, bottom]
 
 
-def format_chat(text, side):
+def format_chat(text, side, width=None):
+    visible = strip_ansi(text)
+    width = width or max(len(visible), 20)
     if side == "left":
         return [f"\u25b6 {text}"]
     return [f"{text} \u25c0"]
@@ -258,10 +335,10 @@ def format_chat(text, side):
 def format_sidebar(text, padding=1, width=None):
     visible = strip_ansi(text)
     width = width or max(len(visible), 20)
-    inner = " " * padding + text + " " * padding
-    top = f"\u252c{'─' * (width + 2)}\u252c"
-    middle = f"\u2502{inner}\u2502"
-    bottom = f"\u2514{'─' * (width + 2)}\u2518"
+    inner_width = width + padding * 2
+    top = f"\u252c{'─' * inner_width}\u252c"
+    middle = f"\u2502{' ' * padding}{text}{' ' * padding}\u2502"
+    bottom = f"\u2514{'─' * inner_width}\u2518"
     return [top, middle, bottom]
 
 
@@ -287,7 +364,9 @@ def format_alert(text):
     return [f"\u26a0 {text}"]
 
 
-def format_list(text):
+def format_list(text, width=None):
+    visible = strip_ansi(text)
+    width = width or len(visible)
     return [f"  \u2022 {text}"]
 
 
@@ -304,6 +383,29 @@ def format_progress(percent, width=30):
 def format_spinner(frame):
     frames = ["\u25d0", "\u25d3", "\u25d1", "\u25d2"]
     return [frames[frame % len(frames)]]
+
+
+def render_table(rows):
+    if not rows:
+        return []
+    columns = []
+    for row in rows:
+        parts = [p.strip() for p in row.split("|")]
+        while len(columns) < len(parts):
+            columns.append(0)
+        for i, part in enumerate(parts):
+            columns[i] = max(columns[i], len(strip_ansi(part)))
+    result = []
+    for row in rows:
+        parts = [p.strip() for p in row.split("|")]
+        while len(parts) < len(columns):
+            parts.append("")
+        formatted_parts = []
+        for i, part in enumerate(parts):
+            pad = max(0, columns[i] - len(strip_ansi(part)))
+            formatted_parts.append(part + " " * pad)
+        result.append(" | ".join(formatted_parts))
+    return result
 
 
 def align_text(text, alignment, width=None):
@@ -334,7 +436,7 @@ def format_output(text, component, color_code):
         return format_alert(text)
 
     if component["chat"]:
-        return format_chat(text, component["chat"])
+        return format_chat(text, component["chat"], component["width"])
 
     if component["sidebar"]:
         return format_sidebar(text, component["padding"], component["width"])
@@ -346,7 +448,7 @@ def format_output(text, component, color_code):
         return format_footer(text, component["width"])
 
     if component["list"]:
-        return format_list(text)
+        return format_list(text, component["width"])
 
     if component["hr"]:
         return format_hr(component["width"] or 40)
@@ -358,7 +460,12 @@ def format_output(text, component, color_code):
         return format_spinner(0)
 
     if component["box"]:
-        return format_border(text, component["box_style"], component["width"])
+        return format_border(text, component["box_style"], component["width"], component["padding"])
+
+    if component["width"]:
+        visible = strip_ansi(text)
+        pad = max(0, component["width"] - len(visible))
+        text = text + " " * pad
 
     return [text]
 
@@ -458,13 +565,16 @@ def api_call(service, params, memory):
         raise EasyError(f"unknown api service: {service}")
 
     route = API_ROUTES[service]
-    key_param = params.get("api-key") or params.get("api_key") or params.get("key")
-    if not key_param:
-        raise EasyError("api-call needs api-key param")
+    if service != "http":
+        key_param = params.get("api-key") or params.get("api_key") or params.get("key")
+        if not key_param:
+            raise EasyError("api-call needs api-key param")
 
-    api_key = resolve_param(str(key_param), memory)
-    if not api_key:
-        raise EasyError("api-key is empty")
+    api_key = None
+    if service != "http":
+        api_key = resolve_param(str(key_param), memory)
+        if not api_key:
+            raise EasyError("api-key is empty")
 
     if service == "http":
         url = params.get("url")
@@ -548,7 +658,10 @@ def builtin(name, args, memory):
     if name == "math":
         expr = parse_value(args[0], memory) if args else ""
         try:
-            return str(eval(expr, {"__builtins__": {}}, {"math": math}))
+            math_globals = {"__builtins__": {}}
+            math_locals = {"math": math}
+            math_locals.update({k: getattr(math, k) for k in dir(math) if not k.startswith("_")})
+            return str(eval(expr, math_globals, math_locals))
         except Exception as e:
             raise EasyError(f"math error: {e}")
     if name == "read":
@@ -660,7 +773,10 @@ def builtin(name, args, memory):
     if name == "math":
         expr = parse_value(args[0], memory) if args else ""
         try:
-            return str(eval(expr, {"__builtins__": {}}, {"math": math}))
+            math_globals = {"__builtins__": {}}
+            math_locals = {"math": math}
+            math_locals.update({k: getattr(math, k) for k in dir(math) if not k.startswith("_")})
+            return str(eval(expr, math_globals, math_locals))
         except Exception as e:
             raise EasyError(f"math error: {e}")
     if name == "read":
@@ -723,11 +839,26 @@ def builtin(name, args, memory):
     raise EasyError(f"unknown function: {name}")
 
 
+def parse_builtin_call(line):
+    line = line.strip()
+    match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)$", line)
+    if not match:
+        return None
+    name = match.group(1)
+    args_str = match.group(2)
+    args = []
+    if args_str.strip():
+        for arg in re.split(r",\s*", args_str):
+            args.append(arg.strip())
+    return name, args
+
+
 def run(source):
     memory = {}
     config = {}
     output = []
     spinner_frame = 0
+    table_buffer = []
 
     lines = source.splitlines()
     line_number = 0
@@ -741,6 +872,9 @@ def run(source):
             continue
 
         if "=" in line and not line.startswith("[") and line.split()[0] not in ("say", "set", "add", "sub", "easy", "if", "for", "while", "func", "return"):
+            if table_buffer:
+                output.extend(render_table(table_buffer))
+                table_buffer = []
             var_name, var_value = line.split("=", 1)
             var_name = var_name.strip()
             var_value = var_value.strip().strip('"')
@@ -753,11 +887,38 @@ def run(source):
         command = parts[0]
 
         try:
+            builtin_call = parse_builtin_call(line)
+            if builtin_call:
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
+                name, args = builtin_call
+                result = builtin(name, args, memory)
+                if result:
+                    output.append(str(result))
+                continue
+
             if command == "easy":
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
                 if len(parts) < 2:
                     raise EasyError("easy needs a subcommand")
 
                 sub = parts[1]
+
+                if sub.startswith("[api-call]"):
+                    api_args = sub[len("[api-call]"):]
+                    if len(parts) > 2:
+                        api_args = api_args + " " + " ".join(parts[2:])
+                    service, api_params = parse_api_call_args("[api-call]" + api_args)
+                    resolved_params = {}
+                    for k, v in api_params.items():
+                        resolved_params[k] = resolve_param(v, memory)
+                    result = api_call(service, resolved_params, memory)
+                    memory["api_result"] = result
+                    output.append(f"[API] {service}: {result[:200]}")
+                    continue
 
                 if sub == "[api-call]":
                     if len(parts) < 3:
@@ -774,20 +935,31 @@ def run(source):
                 raise EasyError(f"unknown easy subcommand: {sub}")
 
             if command == "say":
-                if len(parts) < 2:
-                    raise EasyError("say needs one value")
-                value, component, color_code = parse_say_args(line[4:], memory)
+                raw = line[4:]
+                value, component, color_code = parse_say_args(raw, memory)
+                if component["table"]:
+                    table_buffer.append(value)
+                    continue
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
                 if component["spinner"]:
                     spinner_frame += 1
                     value = format_spinner(spinner_frame - 1)[0]
                 output.extend(format_output(value, component, color_code))
 
             elif command == "set":
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
                 if len(parts) != 3:
                     raise EasyError("set needs a name and value")
                 memory[parts[1]] = parse_value(parts[2], memory)
 
             elif command in ("add", "sub"):
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
                 if len(parts) != 3:
                     raise EasyError(f"{command} needs a name and value")
                 name = parts[1]
@@ -798,9 +970,15 @@ def run(source):
                 memory[name] = current + change if command == "add" else current - change
 
             else:
+                if table_buffer:
+                    output.extend(render_table(table_buffer))
+                    table_buffer = []
                 raise EasyError(f"unknown command: {command}")
 
         except EasyError as error:
             raise EasyError(f"line {line_number}: {error}")
+
+    if table_buffer:
+        output.extend(render_table(table_buffer))
 
     return output

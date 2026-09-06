@@ -15,6 +15,7 @@ from prompt_toolkit.search import SearchState
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.enums import DEFAULT_BUFFER
+from prompt_toolkit.widgets import TextArea
 
 
 EASY_KEYWORDS = [
@@ -439,7 +440,7 @@ def edit_file(path):
     else:
         text = ""
 
-    buffer = Buffer()
+    buffer = Buffer(completer=completer, complete_while_typing=True)
     buffer.text = text
     buffer.auto_suggest = AutoSuggestFromHistory()
 
@@ -469,6 +470,18 @@ def edit_file(path):
                 result.append(("class:line-number", f"{i:3d} "))
         return result
 
+    def get_doc_text():
+        if not buffer.complete_state:
+            return []
+        completion = buffer.complete_state.current_completion
+        if not completion:
+            return []
+        doc = getattr(completion, "doc", None) or ""
+        if not doc:
+            return []
+        lines = doc.splitlines()
+        return [("class:toolbar", f" {lines[0]}" + (f"\n {' '.join(lines[1:])}" if len(lines) > 1 else ""))]
+
     def get_statusbar():
         mode = "INSERT"
         if vi_state.input_mode == InputMode.NAVIGATION:
@@ -478,7 +491,12 @@ def edit_file(path):
         line = buffer.document.cursor_position_row + 1
         col = buffer.document.cursor_position_col + 1
         total = len(buffer.text.splitlines())
-        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment ")]
+        completion_info = ""
+        if buffer.complete_state:
+            completion = buffer.complete_state.current_completion
+            if completion and getattr(completion, "doc", None):
+                completion_info = f" | {completion.doc}"
+        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
     def get_toolbar():
         return [("class:toolbar", " Easy Lang | say set add sub easy if for while func return | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
@@ -491,6 +509,8 @@ def edit_file(path):
         completer.variables = sorted(variables)
         line_numbers_control.text = get_line_numbers()
         statusbar_control.text = get_statusbar()
+        if docs_visible[0]:
+            docs_control.text = get_doc_text()
 
     line_numbers_control = FormattedTextControl(get_line_numbers)
     editor_kwargs = {
@@ -499,8 +519,6 @@ def edit_file(path):
     }
     if "completer" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["completer"] = completer
-    else:
-        buffer.completer = completer
     if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["complete_while_typing"] = True
     editor_control = BufferControl(**editor_kwargs)
@@ -515,6 +533,34 @@ def edit_file(path):
         ]),
         Window(content=statusbar_control, height=1, style="class:status"),
     ])
+
+    docs_visible = [False]
+
+    def get_doc_text():
+        if not docs_visible[0] or not buffer.complete_state:
+            return []
+        completion = buffer.complete_state.current_completion
+        if not completion:
+            return []
+        doc = getattr(completion, "doc", None) or ""
+        if not doc:
+            return []
+        lines = doc.splitlines()
+        return [("class:toolbar", f" {lines[0]}" + (f"\n {' '.join(lines[1:])}" if len(lines) > 1 else ""))]
+
+    docs_control = FormattedTextControl(get_doc_text)
+    docs_window = Window(content=docs_control, height=Dimension(min=0, preferred=8), style="class:toolbar")
+    root_container = FloatContainer(
+        root_container,
+        floats=[
+            Float(
+                content=docs_window,
+                xcursor=True,
+                ycursor=True,
+                transparent=True,
+            )
+        ],
+    )
 
     kb = KeyBindings()
 
@@ -550,6 +596,7 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_next()
+            docs_control.text = get_doc_text()
         else:
             buffer.insert_text("    ")
 
@@ -559,8 +606,9 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_previous()
+            docs_control.text = get_doc_text()
         else:
-            app.current_buffer.start_completion(select_first=False)
+            buffer.start_completion(select_first=False)
 
     @kb.add("right")
     def right_complete(_):
@@ -568,6 +616,7 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_next()
+            docs_control.text = get_doc_text()
         else:
             buffer.cursor_right()
 
@@ -577,6 +626,7 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_previous()
+            docs_control.text = get_doc_text()
         else:
             buffer.cursor_left()
 
@@ -586,6 +636,7 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_previous()
+            docs_control.text = get_doc_text()
         else:
             buffer.cursor_up()
 
@@ -595,6 +646,7 @@ def edit_file(path):
         app = get_app()
         if app.current_buffer.complete_state:
             app.current_buffer.complete_next()
+            docs_control.text = get_doc_text()
         else:
             buffer.cursor_down()
 
@@ -602,6 +654,26 @@ def edit_file(path):
     def trigger_completion(_):
         from prompt_toolkit.application import get_app
         get_app().current_buffer.start_completion(select_first=False)
+
+    @kb.add("f1")
+    def show_docs(_):
+        docs_visible[0] = True
+        docs_control.text = get_doc_text()
+
+    @kb.add("c-h")
+    def hide_docs(_):
+        docs_visible[0] = False
+        docs_control.text = get_doc_text()
+
+    @kb.add("escape")
+    def hide_docs_escape(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if docs_visible[0]:
+            docs_visible[0] = False
+            docs_control.text = get_doc_text()
+        elif app.current_buffer.complete_state:
+            app.current_buffer.complete_state = None
 
     @kb.add("enter")
     def smart_enter(_):
