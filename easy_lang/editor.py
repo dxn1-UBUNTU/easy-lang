@@ -217,7 +217,7 @@ class EasyCompleter(Completer):
             scored = [(fuzzy_score(lower_word, kw), kw) for kw in EASY_KEYWORDS]
             for score, kw in sorted(scored, reverse=True):
                 if score > 0:
-                    yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
+                    yield Completion(kw, start_position=-len(word) or 0, display=kw, display_meta=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
             return
 
         parts = stripped.split()
@@ -230,7 +230,7 @@ class EasyCompleter(Completer):
                 for score, cand in sorted(scored, reverse=True):
                     if score > 0:
                         doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
-                        yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc, style="bg:#1e1e1e #ffffff")
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
                 return
 
         if command == "set":
@@ -239,7 +239,7 @@ class EasyCompleter(Completer):
             for score, cand in sorted(scored, reverse=True):
                 if score > 0:
                     doc = "Literal value or variable" if cand == "value" else "Variable"
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc=doc, style="bg:#1e1e1e #ffffff")
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
             return
 
         if command in ("add", "sub"):
@@ -247,14 +247,14 @@ class EasyCompleter(Completer):
             scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
             for score, cand in sorted(scored, reverse=True):
                 if score > 0:
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, doc="Variable", style="bg:#1e1e1e #ffffff")
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Variable", style="bg:#1e1e1e #ffffff")
             return
 
         if command == "easy":
             if len(parts) >= 2:
                 sub = parts[1].lower()
                 if sub.startswith("[api"):
-                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", doc="Call an AI API", style="bg:#1e1e1e #ffffff")
+                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
                 return
 
         all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
@@ -263,7 +263,7 @@ class EasyCompleter(Completer):
         for score, opt in sorted(scored, reverse=True):
             if opt not in seen and score > 0:
                 seen.add(opt)
-                yield Completion(opt, start_position=-len(word) or 0, display=opt, doc=EASY_DOCS.get(opt, ""), style="bg:#1e1e1e #ffffff")
+                yield Completion(opt, start_position=-len(word) or 0, display=opt, display_meta=EASY_DOCS.get(opt, ""), style="bg:#1e1e1e #ffffff")
 
 
 class EasyLexer(Lexer):
@@ -480,7 +480,7 @@ def edit_file(path):
         completion = buffer.complete_state.current_completion
         if not completion:
             return []
-        doc = getattr(completion, "doc", None) or ""
+        doc = getattr(completion, "display_meta", None) or ""
         if not doc:
             return []
         lines = doc.splitlines()
@@ -499,7 +499,7 @@ def edit_file(path):
         if buffer.complete_state:
             completion = buffer.complete_state.current_completion
             if completion and getattr(completion, "doc", None):
-                completion_info = f" | {completion.doc}"
+                completion_info = f" | {completion.display_meta}"
         return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
     def get_toolbar():
