@@ -31,6 +31,19 @@ EASY_KEYWORDS = [
     "return",
 ]
 
+EASY_METHODS = [
+    "len",
+    "upper",
+    "lower",
+    "trim",
+    "split",
+    "join",
+    "replace",
+    "contains",
+    "startswith",
+    "endswith",
+]
+
 EASY_COLORS = [
     ":green:",
     ":red:",
@@ -109,6 +122,51 @@ EASY_BUILTINS = [
     "http(",
 ]
 
+EASY_API_SERVICES = [
+    "gemini",
+    "openai",
+    "huggingface",
+    "anthropic",
+    "cohere",
+    "http",
+]
+
+EASY_HTTP_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "HEAD",
+    "OPTIONS",
+]
+
+EASY_MATH_FUNCTIONS = [
+    "sqrt",
+    "pow",
+    "abs",
+    "min",
+    "max",
+    "round",
+    "sum",
+    "floor",
+    "ceil",
+    "log",
+    "exp",
+    "sin",
+    "cos",
+    "tan",
+    "pi",
+    "e",
+]
+
+EASY_HASH_ALGOS = [
+    "md5",
+    "sha1",
+    "sha256",
+    "sha512",
+]
+
 EASY_SNIPPETS = {
     "say": 'say "$1"',
     "set": 'set $1 "$2"',
@@ -150,6 +208,18 @@ EASY_SNIPPETS = {
     ":magenta:": ":magenta: $1",
     ":white:": ":white: $1",
     ":black:": ":black: $1",
+    "len(": 'len($1)',
+    "upper(": 'upper($1)',
+    "lower(": 'lower($1)',
+    "trim(": 'trim($1)',
+    "split(": 'split($1, $2)',
+    "join(": 'join($1, $2)',
+    "replace(": 'replace($1, $2, $3)',
+    "math(": 'math("$1")',
+    "random(": 'random($1, $2)',
+    "read(": 'read("$1")',
+    "write(": 'write("$1", "$2")',
+    "http(": 'http("$1", $2)',
 }
 
 EASY_DOCS = {
@@ -304,11 +374,29 @@ class EasyCompleter(Completer):
                     yield Completion(kw, start_position=-len(word) or 0, display=kw, display_meta=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
             return
 
-        parts = stripped.split()
-        command = parts[0].lower() if parts else ""
+        if word.endswith("."):
+            method_name = word[:-1].lower()
+            candidates = [(m, "method") for m in EASY_METHODS]
+            if not method_name:
+                for method, kind in candidates:
+                    yield Completion(method, start_position=-1, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
+                return
+            scored = [(fuzzy_score_vscode(method_name, m), m, kind) for m, kind in candidates]
+            for score, method, kind in sorted(scored, reverse=True):
+                if score > 0:
+                    yield Completion(method, start_position=-len(method_name) or 0, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
+            if not any(True for _ in []):
+                for method, kind in candidates:
+                    yield Completion(method, start_position=-len(method_name) or 0, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
+            return
 
-        if command in ("say",):
-            if line.endswith(" ") or line.lower().startswith("say "):
+        prefix = line[:document.cursor_position_col]
+        parts = prefix.split()
+        command = parts[0].lower() if parts else ""
+        after_command = prefix[len(command):].strip() if command else ""
+
+        if command == "say":
+            if after_command or line.lower().startswith("say "):
                 candidates = [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "variable") for c in (EASY_COMPONENTS + EASY_COLORS + list(self.variables))]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
                 for score, cand, kind in sorted(scored, reverse=True):
@@ -318,7 +406,7 @@ class EasyCompleter(Completer):
                 return
 
         if command == "set":
-            if line.endswith(" ") or line.lower().startswith("set "):
+            if after_command or line.lower().startswith("set "):
                 candidates = [("value", "snippet")] + [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
                 for score, cand, kind in sorted(scored, reverse=True):
@@ -328,7 +416,7 @@ class EasyCompleter(Completer):
                 return
 
         if command in ("add", "sub"):
-            if line.endswith(" ") or line.lower().startswith(f"{command} "):
+            if after_command or line.lower().startswith(f"{command} "):
                 candidates = [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
                 for score, cand, kind in sorted(scored, reverse=True):
@@ -337,11 +425,47 @@ class EasyCompleter(Completer):
                 return
 
         if command == "easy":
-            if len(parts) >= 2:
-                sub = parts[1].lower()
+            if after_command or line.lower().startswith("easy "):
+                sub = parts[1].lower() if len(parts) > 1 else ""
                 if sub.startswith("[api"):
                     yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
+                else:
+                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
                 return
+
+        if stripped.startswith(":") and not stripped.endswith(":"):
+            candidates = [(c, "color") for c in EASY_COLORS]
+            scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+            for score, cand, kind in sorted(scored, reverse=True):
+                if score > 0:
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=EASY_DOCS.get(cand, ""), style="bg:#1e1e1e #ffffff")
+            return
+
+        if stripped.startswith("[") and not stripped.endswith("]"):
+            candidates = [(c, "component") for c in EASY_COMPONENTS]
+            scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+            for score, cand, kind in sorted(scored, reverse=True):
+                if score > 0:
+                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=EASY_DOCS.get(cand, ""), style="bg:#1e1e1e #ffffff")
+            return
+
+        if stripped.startswith("math("):
+            candidates = [(f, "math") for f in EASY_MATH_FUNCTIONS]
+            for func, kind in candidates:
+                yield Completion(func, start_position=-len(word) or 0, display=func, display_meta=f"Math function: {func}()", style="bg:#1e1e1e #ffffff")
+            return
+
+        if stripped.startswith("hash("):
+            candidates = [(a, "hash") for a in EASY_HASH_ALGOS]
+            for algo, kind in candidates:
+                yield Completion(algo, start_position=-len(word) or 0, display=algo, display_meta=f"Hash algorithm: {algo}", style="bg:#1e1e1e #ffffff")
+            return
+
+        if stripped.startswith("http("):
+            candidates = [(m, "http") for m in EASY_HTTP_METHODS]
+            for method, kind in candidates:
+                yield Completion(method, start_position=-len(word) or 0, display=method, display_meta=f"HTTP method: {method}", style="bg:#1e1e1e #ffffff")
+            return
 
         all_options = [(kw, "keyword") for kw in EASY_KEYWORDS] + [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "builtin") for c in (EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS)]
         scored = [(fuzzy_score_vscode(lower_word, opt), opt, kind) for opt, kind in all_options]
