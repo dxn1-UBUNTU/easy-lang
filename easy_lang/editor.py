@@ -390,6 +390,13 @@ class EasyCompleter(Completer):
                     yield Completion(method, start_position=-len(method_name) or 0, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
             return
 
+        if word == '"' or word == "'":
+            candidates = [(v, "variable") for v in self.variables] + [(b, "builtin") for b in EASY_BUILTINS]
+            for cand, kind in candidates:
+                doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
+                yield Completion(cand, start_position=0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
+            return
+
         prefix = line[:document.cursor_position_col]
         parts = prefix.split()
         command = parts[0].lower() if parts else ""
@@ -428,7 +435,13 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("easy "):
                 sub = parts[1].lower() if len(parts) > 1 else ""
                 if sub.startswith("[api"):
-                    yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
+                    angle_index = prefix.find("<")
+                    if angle_index != -1 and ">" not in prefix[angle_index:]:
+                        candidates = [(s, "api") for s in EASY_API_SERVICES]
+                        for service, kind in candidates:
+                            yield Completion(service, start_position=-len(word) or 0, display=service, display_meta="API service", style="bg:#1e1e1e #ffffff")
+                    else:
+                        yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
                 else:
                     yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
                 return
