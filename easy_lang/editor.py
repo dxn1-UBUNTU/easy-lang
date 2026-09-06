@@ -431,6 +431,53 @@ class EasyCompleter(Completer):
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Variable", style="bg:#1e1e1e #ffffff")
                 return
 
+        if command == "for":
+            if after_command or line.lower().startswith("for "):
+                candidates = [("item", "snippet")] + [(v, "variable") for v in self.variables]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        doc = "Loop variable" if cand == "item" else "Variable"
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
+                return
+
+        if command == "if":
+            if after_command or line.lower().startswith("if "):
+                candidates = ["condition"]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, "keyword") for c in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Condition expression", style="bg:#1e1e1e #ffffff")
+                return
+
+        if command == "while":
+            if after_command or line.lower().startswith("while "):
+                candidates = ["condition"]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, "keyword") for c in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Condition expression", style="bg:#1e1e1e #ffffff")
+                return
+
+        if command == "func":
+            if after_command or line.lower().startswith("func "):
+                candidates = [("name", "snippet")]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Function name", style="bg:#1e1e1e #ffffff")
+                return
+
+        if command == "return":
+            if after_command or line.lower().startswith("return "):
+                candidates = [("value", "snippet")] + [(v, "variable") for v in self.variables]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        doc = "Return value" if cand == "value" else "Variable"
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
+                return
+
         if command == "easy":
             if after_command or line.lower().startswith("easy "):
                 sub = parts[1].lower() if len(parts) > 1 else ""
