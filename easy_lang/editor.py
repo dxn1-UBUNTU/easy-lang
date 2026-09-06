@@ -109,6 +109,49 @@ EASY_BUILTINS = [
     "http(",
 ]
 
+EASY_SNIPPETS = {
+    "say": 'say "$1"',
+    "set": 'set $1 "$2"',
+    "if": "if $1:\n    $2",
+    "for": "for $1 in $2:\n    $3",
+    "while": "while $1:\n    $2",
+    "func": "func $1($2):\n    $3",
+    "easy": 'easy [api-call]<$1>($2)',
+    "[box]": "[box] $1",
+    "[box:double]": "[box:double] $1",
+    "[box:rounded]": "[box:rounded] $1",
+    "[box:bold]": "[box:bold] $1",
+    "[chat:left]": "[chat:left] $1",
+    "[chat:right]": "[chat:right] $1",
+    "[sidebar]": "[sidebar] $1",
+    "[header]": "[header] $1",
+    "[footer]": "[footer] $1",
+    "[alert]": "[alert] $1",
+    "[list]": "[list] $1",
+    "[table]": "[table] $1",
+    "[progress:50]": "[progress:50] $1",
+    "[spinner]": "[spinner] $1",
+    "[input:prompt]": "[input:prompt] $1",
+    "[align:center]": "[align:center] $1",
+    "[padding:2]": "[padding:2] $1",
+    "[width:40]": "[width:40] $1",
+    "[bg:blue]": "[bg:blue] $1",
+    "[bold]": "[bold] $1",
+    "[dim]": "[dim] $1",
+    "[italic]": "[italic] $1",
+    "[underline]": "[underline] $1",
+    "[reverse]": "[reverse] $1",
+    "[strikethrough]": "[strikethrough] $1",
+    ":green:": ":green: $1",
+    ":red:": ":red: $1",
+    ":blue:": ":blue: $1",
+    ":yellow:": ":yellow: $1",
+    ":cyan:": ":cyan: $1",
+    ":magenta:": ":magenta: $1",
+    ":white:": ":white: $1",
+    ":black:": ":black: $1",
+}
+
 EASY_DOCS = {
     "say": "say \"text\" [component] :color: - Print text to terminal",
     "set": "set name value - Store a value in a variable",
@@ -202,6 +245,47 @@ def fuzzy_score(query, candidate):
     return score if qi == len(query) else 0
 
 
+def fuzzy_score_vscode(query, candidate):
+    q = query.lower()
+    c = candidate.lower()
+    if q == c:
+        return 100
+    if c.startswith(q):
+        return 90
+    qlen = len(q)
+    clen = len(c)
+    if qlen > clen:
+        return 0
+    q_idx = 0
+    consecutive = 0
+    max_consecutive = 0
+    score = 0
+    for i, ch in enumerate(c):
+        if q_idx < qlen and ch == q[q_idx]:
+            score += 1
+            q_idx += 1
+            consecutive += 1
+            max_consecutive = max(max_consecutive, consecutive)
+        else:
+            consecutive = 0
+    if q_idx != qlen:
+        return 0
+    score = score * 2 + max_consecutive * 5
+    if c.find(q) != -1:
+        score += 10
+    return score
+
+
+COMPLETION_KINDS = {
+    "keyword": "keyword",
+    "component": "component",
+    "color": "color",
+    "builtin": "function",
+    "variable": "variable",
+    "snippet": "snippet",
+}
+
+
 class EasyCompleter(Completer):
     def __init__(self, variables=None):
         self.variables = variables or []
@@ -214,8 +298,8 @@ class EasyCompleter(Completer):
         lower_word = word.lower()
 
         if not stripped:
-            scored = [(fuzzy_score(lower_word, kw), kw) for kw in EASY_KEYWORDS]
-            for score, kw in sorted(scored, reverse=True):
+            scored = [(fuzzy_score_vscode(lower_word, kw), kw, "keyword") for kw in EASY_KEYWORDS]
+            for score, kw, kind in sorted(scored, reverse=True):
                 if score > 0:
                     yield Completion(kw, start_position=-len(word) or 0, display=kw, display_meta=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
             return
@@ -224,31 +308,33 @@ class EasyCompleter(Completer):
         command = parts[0].lower() if parts else ""
 
         if command in ("say",):
-            if stripped.lower().endswith(" ") or stripped.lower().startswith("say "):
-                candidates = EASY_COMPONENTS + EASY_COLORS + list(self.variables)
-                scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
-                for score, cand in sorted(scored, reverse=True):
+            if line.endswith(" ") or line.lower().startswith("say "):
+                candidates = [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "variable") for c in (EASY_COMPONENTS + EASY_COLORS + list(self.variables))]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
                     if score > 0:
                         doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
                 return
 
         if command == "set":
-            candidates = ["value"] + list(self.variables)
-            scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
-            for score, cand in sorted(scored, reverse=True):
-                if score > 0:
-                    doc = "Literal value or variable" if cand == "value" else "Variable"
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
-            return
+            if line.endswith(" ") or line.lower().startswith("set "):
+                candidates = [("value", "snippet")] + [(v, "variable") for v in self.variables]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        doc = "Literal value or variable" if cand == "value" else "Variable"
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
+                return
 
         if command in ("add", "sub"):
-            candidates = list(self.variables)
-            scored = [(fuzzy_score(lower_word, c), c) for c in candidates]
-            for score, cand in sorted(scored, reverse=True):
-                if score > 0:
-                    yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Variable", style="bg:#1e1e1e #ffffff")
-            return
+            if line.endswith(" ") or line.lower().startswith(f"{command} "):
+                candidates = [(v, "variable") for v in self.variables]
+                scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
+                for score, cand, kind in sorted(scored, reverse=True):
+                    if score > 0:
+                        yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Variable", style="bg:#1e1e1e #ffffff")
+                return
 
         if command == "easy":
             if len(parts) >= 2:
@@ -257,13 +343,23 @@ class EasyCompleter(Completer):
                     yield Completion("[api-call]", start_position=-len(word) or 0, display="[api-call]", display_meta="Call an AI API", style="bg:#1e1e1e #ffffff")
                 return
 
-        all_options = EASY_KEYWORDS + EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS
-        scored = [(fuzzy_score(lower_word, opt), opt) for opt in all_options]
+        all_options = [(kw, "keyword") for kw in EASY_KEYWORDS] + [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "builtin") for c in (EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS)]
+        scored = [(fuzzy_score_vscode(lower_word, opt), opt, kind) for opt, kind in all_options]
         seen = set()
-        for score, opt in sorted(scored, reverse=True):
+        for score, opt, kind in sorted(scored, reverse=True):
             if opt not in seen and score > 0:
                 seen.add(opt)
                 yield Completion(opt, start_position=-len(word) or 0, display=opt, display_meta=EASY_DOCS.get(opt, ""), style="bg:#1e1e1e #ffffff")
+
+        snippet_candidates = []
+        for trigger, snippet_text in EASY_SNIPPETS.items():
+            snippet_candidates.append((trigger, snippet_text, "snippet"))
+
+        scored_snippets = [(fuzzy_score_vscode(lower_word, trigger), trigger, snippet_text, kind) for trigger, snippet_text, kind in snippet_candidates]
+        for score, trigger, snippet_text, kind in sorted(scored_snippets, reverse=True):
+            if trigger not in seen and score > 0:
+                seen.add(trigger)
+                yield Completion(trigger, start_position=-len(word) or 0, display=trigger, display_meta=f"snippet: {snippet_text}", style="bg:#1e1e1e #ffffff")
 
 
 class EasyLexer(Lexer):
@@ -486,6 +582,60 @@ def edit_file(path):
         lines = doc.splitlines()
         return [("class:toolbar", f" {lines[0]}" + (f"\n {' '.join(lines[1:])}" if len(lines) > 1 else ""))]
 
+    BUILTIN_SIGNATURES = {
+        "len": "len(text)",
+        "upper": "upper(text)",
+        "lower": "lower(text)",
+        "trim": "trim(text)",
+        "split": "split(text, sep)",
+        "join": "join(list, sep)",
+        "replace": "replace(text, old, new)",
+        "contains": "contains(text, sub)",
+        "startswith": "startswith(text, sub)",
+        "endswith": "endswith(text, sub)",
+        "math": 'math("expr")',
+        "random": "random(min, max)",
+        "now": "now()",
+        "date": "date()",
+        "time": "time()",
+        "sleep": "sleep(seconds)",
+        "read": "read(path)",
+        "write": "write(path, content)",
+        "append": "append(path, content)",
+        "exists": "exists(path)",
+        "delete": "delete(path)",
+        "listdir": "listdir(path)",
+        "exec": "exec(command)",
+        "env": "env(variable)",
+        "hash": "hash(text, algo)",
+        "base64": "base64(text)",
+        "decode": "decode(base64_text)",
+        "http": "http(url, method)",
+    }
+
+    def get_signature_help():
+        cursor = buffer.document.cursor_position
+        text = buffer.text
+        line_start = buffer.document.cursor_position_row
+        line = buffer.document.current_line
+        col = buffer.document.cursor_position_col
+
+        for builtin_name in BUILTIN_SIGNATURES:
+            if builtin_name not in line:
+                continue
+            idx = line.find(builtin_name)
+            while idx != -1:
+                if idx <= col <= idx + len(builtin_name) + 1:
+                    open_pos = line.find("(", idx)
+                    if open_pos != -1 and col > open_pos:
+                        close_pos = line.find(")", open_pos)
+                        if close_pos == -1 or col <= close_pos + 1:
+                            sig = BUILTIN_SIGNATURES[builtin_name]
+                            if close_pos == -1 or col <= close_pos + 1:
+                                return f"{builtin_name}(...)"
+                idx = line.find(builtin_name, idx + 1)
+        return None
+
     def get_statusbar():
         mode = "INSERT"
         if vi_state.input_mode == InputMode.NAVIGATION:
@@ -500,6 +650,9 @@ def edit_file(path):
             completion = buffer.complete_state.current_completion
             if completion and getattr(completion, "display_meta", None):
                 completion_info = f" | {completion.display_meta}"
+        signature_info = get_signature_help() or ""
+        if signature_info:
+            completion_info = f" | {signature_info}{completion_info}"
         return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
     def get_toolbar():
@@ -650,9 +803,63 @@ def edit_file(path):
     def backspace(_):
         buffer.delete_before_cursor()
 
-    @kb.add("backspace")
-    def backspace(_):
-        buffer.delete_before_cursor()
+    @kb.add("(")
+    def insert_paren(_):
+        buffer.insert_text("()")
+        buffer.cursor_left()
+
+    @kb.add("[")
+    def insert_bracket(_):
+        buffer.insert_text("[]")
+        buffer.cursor_left()
+
+    @kb.add("{")
+    def insert_brace(_):
+        buffer.insert_text("{}")
+        buffer.cursor_left()
+
+    @kb.add("\"")
+    def insert_double_quote(_):
+        buffer.insert_text("\"\"")
+        buffer.cursor_left()
+
+    @kb.add("'")
+    def insert_single_quote(_):
+        buffer.insert_text("''")
+        buffer.cursor_left()
+
+    @kb.add(")")
+    def close_paren(_):
+        if buffer.document.current_char == ")":
+            buffer.cursor_right()
+        else:
+            buffer.insert_text(")")
+
+    @kb.add("]")
+    def close_bracket(_):
+        if buffer.document.current_char == "]":
+            buffer.cursor_right()
+        else:
+            buffer.insert_text("]")
+
+    @kb.add("}")
+    def close_brace(_):
+        if buffer.document.current_char == "}":
+            buffer.cursor_right()
+        else:
+            buffer.insert_text("}")
+
+    @kb.add("<")
+    def insert_angle(_):
+        buffer.insert_text("<>")
+        buffer.cursor_left()
+
+    @kb.add(">")
+    def close_angle(_):
+        if buffer.document.current_char == ">":
+            buffer.cursor_right()
+        else:
+            buffer.insert_text(">")
 
     @kb.add("c-space")
     def trigger_completion(_):
