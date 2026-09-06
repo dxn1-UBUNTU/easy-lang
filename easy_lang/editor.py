@@ -325,7 +325,24 @@ def fuzzy_score_vscode(query, candidate):
     qlen = len(q)
     clen = len(c)
     if qlen > clen:
-        return 0
+        q_idx = 0
+        consecutive = 0
+        max_consecutive = 0
+        score = 0
+        for i, ch in enumerate(c):
+            if q_idx < qlen and ch == q[q_idx]:
+                score += 1
+                q_idx += 1
+                consecutive += 1
+                max_consecutive = max(max_consecutive, consecutive)
+            else:
+                consecutive = 0
+        if q_idx != qlen:
+            return 0
+        score = score * 2 + max_consecutive * 5
+        if c.find(q) != -1:
+            score += 10
+        return score
     q_idx = 0
     consecutive = 0
     max_consecutive = 0
