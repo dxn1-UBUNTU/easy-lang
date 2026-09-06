@@ -1,0 +1,5 @@
+#!/usr/bin/env easy
+say "hello world" [box] :green:
+set score 10
+add score 5
+say score [box] :cyan:

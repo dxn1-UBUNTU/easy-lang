@@ -5,10 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "easy-lang"
 version = "0.1.0"
-description = "A tiny beginner-friendly coding language."
+description = "A tiny language made specifically for building beautiful terminal UIs."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+dependencies = [
+    "prompt_toolkit>=3.0",
+    "pygments>=2.0",
+]
 
 [project.scripts]
 easy = "easy_lang.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["easy_lang*"]
+exclude = ["install*", "tests*"]

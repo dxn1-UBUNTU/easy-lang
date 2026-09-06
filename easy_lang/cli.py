@@ -3,6 +3,16 @@ import sys
 
 from easy_lang.interpreter import EasyError, run
 
+try:
+    from easy_lang.editor import edit_file
+except ImportError:
+    edit_file = None
+
+try:
+    from easy_lang.installer import install as installer_install
+except ImportError:
+    installer_install = None
+
 
 def read_source(path):
     with open(path, "r", encoding="utf-8") as file:
@@ -34,6 +44,26 @@ def check_file(args):
         return 1
 
     print("ok")
+    return 0
+
+
+def edit_file_command(args):
+    if edit_file is None:
+        print("easy error: prompt_toolkit is required for the editor. Install it with: pip install prompt_toolkit pygments", file=sys.stderr)
+        return 1
+    edit_file(args.file)
+    return 0
+
+
+def install_command(args):
+    if installer_install is None:
+        print("easy error: installer is unavailable.", file=sys.stderr)
+        return 1
+    try:
+        installer_install(args.target)
+    except Exception as error:
+        print(f"easy error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -73,6 +103,14 @@ def build_parser():
     check_parser = subparsers.add_parser("check", help="check an Easy file for errors")
     check_parser.add_argument("file")
     check_parser.set_defaults(func=check_file)
+
+    edit_parser = subparsers.add_parser("edit", help="edit an Easy file")
+    edit_parser.add_argument("file")
+    edit_parser.set_defaults(func=edit_file_command)
+
+    install_parser = subparsers.add_parser("install", help="install a package or repo")
+    install_parser.add_argument("target", help="package name, npm package, GitHub repo, or URL")
+    install_parser.set_defaults(func=install_command)
 
     repl_parser = subparsers.add_parser("repl", help="start an interactive Easy session")
     repl_parser.set_defaults(func=repl)
