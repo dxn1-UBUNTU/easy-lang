@@ -1,8 +1,13 @@
 #!/usr/bin/env easy
-say "Chat Demo" [header] :cyan:
+say "My App" [header] :cyan:
 say "user: hello" [chat:left] :cyan:
 say "bot: hi there" [chat:right] :green:
 say "system: online" [sidebar] :yellow:
 say "warning: low disk" [alert] :red:
-say "main content here" [box] :white:
+say "main content here" [box:rounded] :white:
+say "list item 1" [list] :green:
+say "list item 2" [list] :green:
+say "list item 3" [list] :green:
+say "──────────────────────────────" [hr]
+say "progress" [progress:75] [width:40] :cyan:
 say "footer info" [footer] :magenta:

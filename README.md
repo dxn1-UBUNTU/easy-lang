@@ -5,15 +5,15 @@ Easy Lang is a tiny language built for one thing: **making beautiful terminal UI
 Instead of wrestling with ANSI escape codes, box-drawing characters, and color mappings, you just write what you want:
 
 ```easy
-say "hello world" [box] :green:
+say "hello world" [box:rounded] :green:
 ```
 
 Output:
 
 ```text
-┌──────────────┐
+╭──────────────╮
 │ hello world  │
-└──────────────┘
+╰──────────────╯
 ```
 
 That's it. No libraries, no setup, just beautiful TUIs.
@@ -26,7 +26,7 @@ Building TUIs in the terminal usually means:
 - Manually calculating box widths
 - Fighting with terminal compatibility
 
-Easy Lang removes all of that. It gives you `[box]`, `[chat]`, `[sidebar]`, `[header]`, `[footer]`, and `[alert]` out of the box so you can focus on the interface, not the implementation.
+Easy Lang removes all of that. It gives you components, colors, styles, and layout primitives out of the box so you can focus on the interface, not the implementation.
 
 ## Components
 
@@ -42,6 +42,14 @@ Output:
 ┌──────────────┐
 │ hello world  │
 └──────────────┘
+```
+
+### Box Styles
+
+```easy
+say "double" [box:double] :cyan:
+say "rounded" [box:rounded] :green:
+say "bold" [box:bold] :magenta:
 ```
 
 ### Chat
@@ -86,6 +94,40 @@ say "disk full" [alert] :red:
 say "check complete" [alert] :green:
 ```
 
+### List
+
+Bullet list items.
+
+```easy
+say "first item" [list] :green:
+say "second item" [list] :green:
+say "third item" [list] :green:
+```
+
+### Horizontal Rule
+
+```easy
+say "──────────────────────────────" [hr]
+```
+
+### Progress Bar
+
+```easy
+say "progress" [progress:75] [width:40] :cyan:
+```
+
+Output:
+
+```text
+[████████████████████████████████████████████████] 75%
+```
+
+### Spinner
+
+```easy
+say "loading" [spinner] :yellow:
+```
+
 ## Colors
 
 All components support colors:
@@ -99,16 +141,43 @@ All components support colors:
 - `:white:`
 - `:black:`
 
-## Full Example
+## Styles
+
+Text styles you can apply:
+
+- `[bold]`
+- `[dim]`
+- `[italic]`
+- `[underline]`
+- `[blink]`
+- `[reverse]`
+- `[strikethrough]`
+
+## Layout
+
+Alignment and spacing:
 
 ```easy
-say "Chat Demo" [header] :cyan:
-say "user: hello" [chat:left] :cyan:
-say "bot: hi there" [chat:right] :green:
-say "status: online" [sidebar] :yellow:
-say "warning: low disk" [alert] :red:
-say "main content here" [box] :white:
-say "footer info" [footer] :magenta:
+say "centered" [align:center] [box] :cyan:
+say "right" [align:right] :yellow:
+```
+
+Padding inside boxes:
+
+```easy
+say "padded" [padding:2] [box] :white:
+```
+
+Fixed width:
+
+```easy
+say "fixed width" [width:40] [box] :green:
+```
+
+Background color:
+
+```easy
+say "blue bg" [bg:blue] :white:
 ```
 
 ## Variables
@@ -121,6 +190,23 @@ set score 0
 add score 10
 sub score 3
 say score [box] :yellow:
+```
+
+## Full Example
+
+```easy
+say "Chat Demo" [header] :cyan:
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
+say "status: online" [sidebar] :yellow:
+say "warning: low disk" [alert] :red:
+say "main content here" [box:rounded] :white:
+say "list item 1" [list] :green:
+say "list item 2" [list] :green:
+say "list item 3" [list] :green:
+say "──────────────────────────────" [hr]
+say "progress" [progress:75] [width:40] :cyan:
+say "footer info" [footer] :magenta:
 ```
 
 ## Install
@@ -159,8 +245,11 @@ easy edit examples/hello.easy
 
 - **Ctrl+S** to save
 - **Ctrl+Q** to quit
+- **Tab / Arrow keys** for autocomplete
+- **Ctrl+/** to comment/uncomment lines
+- **Arrow keys** navigate and select completions
 
-Autocomplete knows Easy syntax: keywords, components, colors, and variables as you define them.
+Autocomplete knows all Easy syntax: keywords, components, colors, styles, layout tags, and variables as you define them.
 
 ## Direct execution
 
@@ -168,7 +257,7 @@ Easy files can run directly:
 
 ```easy
 #!/usr/bin/env easy
-say "hello world" [box] :green:
+say "hello world" [box:rounded] :green:
 ```
 
 ```bash

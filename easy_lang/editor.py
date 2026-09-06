@@ -7,6 +7,9 @@ from prompt_toolkit.layout.controls import BufferControl
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding.vi_state import InputMode, ViState
+from prompt_toolkit.filters import Condition
 
 
 EASY_KEYWORDS = [
@@ -29,13 +32,71 @@ EASY_COLORS = [
 
 EASY_COMPONENTS = [
     "[box]",
+    "[box:double]",
+    "[box:rounded]",
+    "[box:bold]",
     "[chat:left]",
     "[chat:right]",
     "[sidebar]",
     "[header]",
     "[footer]",
     "[alert]",
+    "[list]",
+    "[table]",
+    "[hr]",
+    "[progress:50]",
+    "[spinner]",
+    "[input:prompt]",
+    "[align:center]",
+    "[bold]",
+    "[dim]",
+    "[underline]",
+    "[italic]",
+    "[reverse]",
+    "[padding:2]",
+    "[width:40]",
+    "[bg:blue]",
 ]
+
+EASY_DOCS = {
+    "say": "say \"text\" [component] :color: - Print text to terminal",
+    "set": "set name value - Store a value in a variable",
+    "add": "add name value - Add to a number variable",
+    "sub": "sub name value - Subtract from a number variable",
+    "[box]": "[box] - Wrap text in a single-line box",
+    "[box:double]": "[box:double] - Wrap text in a double-line box",
+    "[box:rounded]": "[box:rounded] - Wrap text in a rounded box",
+    "[box:bold]": "[box:bold] - Wrap text in a bold box",
+    "[chat:left]": "[chat:left] - Left-aligned chat bubble",
+    "[chat:right]": "[chat:right] - Right-aligned chat bubble",
+    "[sidebar]": "[sidebar] - Vertical sidebar panel",
+    "[header]": "[header] - Bold header bar",
+    "[footer]": "[footer] - Bold footer bar",
+    "[alert]": "[alert] - Warning/error alert line",
+    "[list]": "[list] - Bullet list item",
+    "[table]": "[table] - Table row",
+    "[hr]": "[hr] - Horizontal rule",
+    "[progress:50]": "[progress:50] - Progress bar (0-100)",
+    "[spinner]": "[spinner] - Animated spinner",
+    "[input:prompt]": "[input:prompt] - Text input prompt",
+    "[align:center]": "[align:center] - Center align text",
+    "[bold]": "[bold] - Bold text style",
+    "[dim]": "[dim] - Dim text style",
+    "[underline]": "[underline] - Underline text style",
+    "[italic]": "[italic] - Italic text style",
+    "[reverse]": "[reverse] - Reverse video style",
+    "[padding:2]": "[padding:2] - Add padding inside box",
+    "[width:40]": "[width:40] - Set component width",
+    "[bg:blue]": "[bg:blue] - Set background color",
+    ":green:": ":green: - Green foreground color",
+    ":red:": ":red: - Red foreground color",
+    ":blue:": ":blue: - Blue foreground color",
+    ":yellow:": ":yellow: - Yellow foreground color",
+    ":cyan:": ":cyan: - Cyan foreground color",
+    ":magenta:": ":magenta: - Magenta foreground color",
+    ":white:": ":white: - White foreground color",
+    ":black:": ":black: - Black foreground color",
+}
 
 
 class EasyCompleter(Completer):
@@ -51,7 +112,7 @@ class EasyCompleter(Completer):
 
         if not stripped:
             for kw in EASY_KEYWORDS:
-                yield Completion(kw, start_position=-len(word) or 0)
+                yield Completion(kw, start_position=-len(word) or 0, display=kw, doc=EASY_DOCS.get(kw, ""))
             return
 
         parts = stripped.split()
@@ -60,31 +121,31 @@ class EasyCompleter(Completer):
         if command in ("say",):
             if lower_stripped.endswith(" ") or lower_stripped.lower().startswith("say "):
                 for component in EASY_COMPONENTS:
-                    yield Completion(component, start_position=-len(word) or 0)
+                    yield Completion(component, start_position=-len(word) or 0, display=component, doc=EASY_DOCS.get(component, ""))
                 for color in EASY_COLORS:
-                    yield Completion(color, start_position=-len(word) or 0)
+                    yield Completion(color, start_position=-len(word) or 0, display=color, doc=EASY_DOCS.get(color, ""))
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0)
+                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
 
         if command == "set":
             if len(parts) == 2:
-                yield Completion("value", start_position=-len(word) or 0)
+                yield Completion("value", start_position=-len(word) or 0, display="value", doc="Literal value or variable")
             elif len(parts) >= 3:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0)
+                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
 
         if command in ("add", "sub"):
             if len(parts) == 2:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0)
+                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
             elif len(parts) >= 3:
                 for var in self.variables:
-                    yield Completion(var, start_position=-len(word) or 0)
+                    yield Completion(var, start_position=-len(word) or 0, display=var, doc="Variable")
 
         if not command or command not in set(EASY_KEYWORDS):
             for kw in EASY_KEYWORDS:
                 if kw.startswith(word):
-                    yield Completion(kw, start_position=-len(word))
+                    yield Completion(kw, start_position=-len(word), display=kw, doc=EASY_DOCS.get(kw, ""))
 
 
 class EasyLexer(Lexer):
@@ -147,16 +208,41 @@ class EasyLexer(Lexer):
                 component_found = False
                 component_map = [
                     ("[box]", "class:component-box", 6),
+                    ("[box:double]", "class:component-box", 12),
+                    ("[box:rounded]", "class:component-box", 13),
+                    ("[box:bold]", "class:component-box", 10),
                     ("[chat:left]", "class:component-chat", 11),
                     ("[chat:right]", "class:component-chat", 12),
                     ("[sidebar]", "class:component-sidebar", 9),
                     ("[header]", "class:component-header", 8),
                     ("[footer]", "class:component-footer", 8),
                     ("[alert]", "class:component-alert", 7),
+                    ("[list]", "class:component-list", 6),
+                    ("[table]", "class:component-table", 7),
+                    ("[hr]", "class:component-hr", 4),
+                    ("[progress:", "class:component-progress", 10),
+                    ("[spinner]", "class:component-spinner", 9),
+                    ("[input:", "class:component-input", 7),
+                    ("[align:", "class:component-align", 7),
+                    ("[padding:", "class:component-padding", 9),
+                    ("[width:", "class:component-width", 7),
+                    ("[bg:", "class:component-bg", 4),
+                    ("[bold]", "class:style-bold", 6),
+                    ("[dim]", "class:style-dim", 5),
+                    ("[italic]", "class:style-italic", 8),
+                    ("[underline]", "class:style-underline", 11),
+                    ("[blink]", "class:style-blink", 7),
+                    ("[reverse]", "class:style-reverse", 9),
+                    ("[strikethrough]", "class:style-strikethrough", 15),
                 ]
-                for component, style, length in component_map:
-                    if line[i:i+length].lower() == component:
-                        tokens.append((style, component))
+                for comp, style, length in component_map:
+                    if line[i:i+length].lower() == comp:
+                        tokens.append((style, comp if comp.startswith("[") else comp + "]"))
+                        i += length
+                        component_found = True
+                        break
+                    elif comp.startswith("[") and line[i:i+length].lower().startswith(comp[:-1]):
+                        tokens.append((style, line[i:i+length]))
                         i += length
                         component_found = True
                         break
@@ -181,6 +267,7 @@ class EasyLexer(Lexer):
 style = Style.from_dict({
     "status": "bg:#000000 #ffffff",
     "line-number": "#888888",
+    "line-number-active": "#ffff00",
     "comment": "#666666",
     "string": "#ffa500",
     "keyword": "#00ffff",
@@ -190,6 +277,23 @@ style = Style.from_dict({
     "component-header": "#0000ff",
     "component-footer": "#ff00ff",
     "component-alert": "#ff0000",
+    "component-list": "#00ffff",
+    "component-table": "#00ffff",
+    "component-hr": "#888888",
+    "component-progress": "#00ff00",
+    "component-spinner": "#ffff00",
+    "component-input": "#00ffff",
+    "component-align": "#888888",
+    "component-padding": "#888888",
+    "component-width": "#888888",
+    "component-bg": "#888888",
+    "style-bold": "bold",
+    "style-dim": "#666666",
+    "style-italic": "italic",
+    "style-underline": "underline",
+    "style-blink": "blink",
+    "style-reverse": "reverse",
+    "style-strikethrough": "#666666",
     "color-green": "#00ff00",
     "color-red": "#ff0000",
     "color-blue": "#0000ff",
@@ -198,6 +302,14 @@ style = Style.from_dict({
     "color-magenta": "#ff00ff",
     "color-white": "#ffffff",
     "color-black": "#000000",
+    "completion-menu.completion": "bg:#000000 #ffffff",
+    "completion-menu.completion.current": "bg:#444444 #ffffff",
+    "completion-menu.meta.completion": "bg:#000000 #888888",
+    "completion-menu.meta.completion.current": "bg:#444444 #ffffff",
+    "scrollbar.background": "bg:#000000",
+    "scrollbar.button": "bg:#888888",
+    "toolbar": "bg:#000000 #ffffff",
+    "toolbar.status": "bg:#000000 #ffff00",
 })
 
 
@@ -238,7 +350,15 @@ def edit_file(path):
         return result
 
     def get_statusbar():
-        return [("class:status", f" Easy Editor | {path} | Ln {buffer.document.cursor_position_row + 1}, Col {buffer.document.cursor_position_col + 1} | Ctrl+S Save | Ctrl+Q Quit ")]
+        mode = "INSERT"
+        if vi_state.input_mode == InputMode.NAVIGATION:
+            mode = "NAV"
+        elif vi_state.input_mode == InputMode.REPLACE:
+            mode = "REPLACE"
+        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {buffer.document.cursor_position_row + 1}, Col {buffer.document.cursor_position_col + 1} | Tab/Arrows Autocomplete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment ")]
+
+    def get_toolbar():
+        return [("class:toolbar", " Easy Lang Editor | Components: [box] [chat:left] [header] [sidebar] [footer] [alert] [list] [table] [progress:50] [spinner] | Colors: :green: :red: :blue: :cyan: | Styles: [bold] [dim] [underline] [italic] ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -250,10 +370,12 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
 
     line_numbers_control = FormattedTextControl(get_line_numbers)
-    editor_control = BufferControl(buffer=buffer, lexer=lexer)
+    editor_control = BufferControl(buffer=buffer, lexer=lexer, completer=completer, complete_while_typing=True)
     statusbar_control = FormattedTextControl(get_statusbar)
+    toolbar_control = FormattedTextControl(get_toolbar)
 
     root_container = HSplit([
+        Window(content=toolbar_control, height=1, style="class:toolbar"),
         VSplit([
             Window(content=line_numbers_control, width=4, style="class:line-number"),
             Window(content=editor_control, wrap_lines=True),
@@ -274,7 +396,74 @@ def edit_file(path):
         from prompt_toolkit.application import get_app
         get_app().exit()
 
+    @kb.add("c-slash")
+    def comment(_):
+        doc = buffer.document
+        line = doc.current_line
+        if line.strip().startswith("#"):
+            new_line = line.replace("#", "", 1)
+        else:
+            new_line = "#" + line
+        buffer.delete_line_below_cursor()
+        buffer.insert_line_above()
+        buffer.insert_text(new_line)
+
+    @kb.add("tab")
+    def tab_complete(_):
+        from prompt_toolkit.key_binding.vi_state import ViState
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_next()
+        else:
+            app.current_buffer.start_completion(select_first=False)
+
+    @kb.add("right")
+    def right_complete(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_next()
+        else:
+            buffer.cursor_right()
+
+    @kb.add("left")
+    def left_complete(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_previous()
+        else:
+            buffer.cursor_left()
+
+    @kb.add("up")
+    def up_complete(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_previous()
+        else:
+            buffer.cursor_up()
+
+    @kb.add("down")
+    def down_complete(_):
+        from prompt_toolkit.application import get_app
+        app = get_app()
+        if app.current_buffer.complete_state:
+            app.current_buffer.complete_next()
+        else:
+            buffer.cursor_down()
+
+    @kb.add("c-space")
+    def trigger_completion(_):
+        from prompt_toolkit.application import get_app
+        get_app().current_buffer.start_completion(select_first=False)
+
     from prompt_toolkit.application import Application
+    from prompt_toolkit.vi_state import ViState
+    global vi_state
+    vi_state = ViState()
+
     application = Application(
         layout=Layout(root_container, focused_element=editor_control),
         key_bindings=kb,
@@ -282,6 +471,8 @@ def edit_file(path):
         full_screen=True,
         mouse_support=True,
         after_render=on_text_changed,
+        vi_mode=True,
     )
 
+    on_text_changed(None)
     application.run()
