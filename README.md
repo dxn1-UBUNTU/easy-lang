@@ -180,6 +180,93 @@ Background color:
 say "blue bg" [bg:blue] :white:
 ```
 
+## API Calls
+
+Easy can call AI APIs directly from your script.
+
+```easy
+GEMINI_KEY="your-api-key-here"
+
+easy [api-call]<gemini>(api-key=GEMINI_KEY, prompt="Say hello in 5 languages")
+say api_result [box] :cyan:
+```
+
+Supported providers:
+
+- `[api-call]<gemini>(api-key=..., prompt=...)`
+- `[api-call]<openai>(api-key=..., prompt=..., model=...)`
+- `[api-call]<huggingface>(api-key=..., prompt=..., model=...)`
+- `[api-call]<anthropic>(api-key=..., prompt=..., model=...)`
+- `[api-call]<cohere>(api-key=..., prompt=..., model=...)`
+- `[api-call]<http>(url=..., method=GET)`
+
+## Built-in Functions
+
+```easy
+set text "hello world"
+say len(text) [box] :cyan:
+say upper(text) [box] :green:
+say lower(text) [box] :yellow:
+
+set num 42
+say math("sqrt(16)") [box] :magenta:
+say random(1, 100) [box] :red:
+
+say now() [box] :cyan:
+say date() [box] :green:
+say time() [box] :yellow:
+```
+
+### String
+
+- `len(text)`
+- `upper(text)`
+- `lower(text)`
+- `trim(text)`
+- `split(text, sep)`
+- `join(list, sep)`
+- `replace(text, old, new)`
+- `contains(text, sub)`
+- `startswith(text, sub)`
+- `endswith(text, sub)`
+
+### Math
+
+- `math("expr")` — evaluate math expressions
+- `random(min, max)`
+- `sqrt(n)`, `pow(a, b)`, `abs(n)`, `round(n)`, `min(a, b)`, `max(a, b)`
+
+### Date & Time
+
+- `now()` — ISO timestamp
+- `date()` — YYYY-MM-DD
+- `time()` — HH:MM:SS
+- `sleep(seconds)`
+
+### File I/O
+
+```easy
+set content read("file.txt")
+write("out.txt", "hello")
+append("log.txt", "new line")
+say exists("file.txt") [box] :green:
+say listdir(".") [box] :cyan:
+delete("temp.txt")
+```
+
+### System
+
+```easy
+say exec("whoami") [box] :green:
+say env("HOME") [box] :cyan:
+```
+
+### Crypto & Encoding
+
+- `hash(text, algo)`
+- `base64(text)`
+- `decode(base64_text)`
+
 ## Variables
 
 ```easy
