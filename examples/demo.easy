@@ -1,0 +1,62 @@
+#!/usr/bin/env easy
+say "Easy Lang Demo" [header] :cyan:
+say "TUI + API + Builtins" [box:rounded] :green:
+
+say "──────────────────────────────" [hr]
+
+say "AI API Call" [alert] :yellow:
+easy [api-call]<http>(url="https://api.github.com", method=GET)
+say api_result [box] :white:
+
+say "──────────────────────────────" [hr]
+
+say "Builtins" [header] :magenta:
+say len("hello world") [box] :cyan:
+say upper("easy lang") [box] :green:
+say lower("EASY LANG") [box] :yellow:
+say trim("  spaced  ") [box] :white:
+say replace("hello world", "world", "Easy") [box] :blue:
+say contains("hello world", "world") [box] :green:
+say startswith("hello world", "hello") [box] :cyan:
+say endswith("hello world", "world") [box] :magenta:
+
+say "──────────────────────────────" [hr]
+
+say "Math & Random" [header] :blue:
+say math("2 + 2") [box] :green:
+say math("sqrt(16)") [box] :cyan:
+say random(1, 100) [box] :red:
+
+say "──────────────────────────────" [hr]
+
+say "Date & Time" [header] :yellow:
+say now() [box] :green:
+say date() [box] :cyan:
+say time() [box] :magenta:
+
+say "──────────────────────────────" [hr]
+
+say "File I/O" [header] :green:
+set filename "demo_output.txt"
+write(filename, "Hello from Easy Lang!")
+say read(filename) [box] :white:
+say exists(filename) [box] :green:
+say listdir(".") [box] :cyan:
+delete(filename)
+
+say "──────────────────────────────" [hr]
+
+say "System" [header] :red:
+say exec("whoami") [box] :green:
+say env("HOME") [box] :cyan:
+say env("USER") [box] :yellow:
+
+say "──────────────────────────────" [hr]
+
+say "Chat Demo" [header] :cyan:
+say "user: hello" [chat:left] :cyan:
+say "bot: hi there" [chat:right] :green:
+
+say "──────────────────────────────" [hr]
+
+say "Thanks for watching!" [footer] :magenta:
