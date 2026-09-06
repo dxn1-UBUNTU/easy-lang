@@ -870,7 +870,10 @@ def edit_file(path):
         if docs_visible[0]:
             docs_control.text = get_doc_text()
         if not buffer.complete_state:
-            buffer.start_completion(select_first=False)
+            try:
+                buffer.start_completion(select_first=False)
+            except RuntimeError:
+                pass
 
     buffer.on_text_changed += on_text_changed
 
@@ -1160,5 +1163,4 @@ def edit_file(path):
         editing_mode=EditingMode.EMACS,
     )
 
-    on_text_changed(None)
     application.run()
