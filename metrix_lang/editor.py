@@ -847,10 +847,10 @@ def edit_file(path):
     variables = set()
     functions = set()
 
-    # Completion is refreshed by our text-change handler. Keeping Prompt
-    # Toolkit's own auto-completion off prevents it from ever committing the
-    # highlighted item while the user is still typing.
-    buffer = Buffer(complete_while_typing=False)
+    # Prompt Toolkit refreshes this asynchronously after every keystroke.
+    # Its native path uses select_first=False, so the list is live but nothing
+    # is inserted until our explicit Tab binding accepts an item.
+    buffer = Buffer(complete_while_typing=True)
     buffer.text = text
     saved_text = [text]
     buffer.auto_suggest = AutoSuggestFromHistory()
@@ -1040,18 +1040,11 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        # Keep the recommendation box live, exactly like an editor.  Crucially
-        # select_first=False means it is only a visual recommendation: it
-        # cannot alter source until the user explicitly presses Tab.
+        # Do not start completions from this callback.  Restarting a completion
+        # while Prompt Toolkit is processing the same edit can freeze the TUI.
+        # Buffer(complete_while_typing=True) refreshes it safely instead.
         if buffer.document.current_line.lstrip().startswith("#"):
             buffer.complete_state = None
-            return
-        try:
-            buffer.start_completion(select_first=False)
-        except RuntimeError:
-            # Prompt Toolkit can reject a refresh while the application is
-            # shutting down; the editor should still be able to save/exit.
-            pass
 
     buffer.on_text_changed += on_text_changed
 
@@ -1064,9 +1057,7 @@ def edit_file(path):
     if "completer" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["completer"] = completer
     if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
-        # We refresh in on_text_changed above so we can force no auto-accept
-        # consistently across Prompt Toolkit versions.
-        editor_kwargs["complete_while_typing"] = False
+        editor_kwargs["complete_while_typing"] = True
     editor_control = BufferControl(**editor_kwargs)
     statusbar_control = FormattedTextControl(get_statusbar)
     toolbar_control = FormattedTextControl(get_toolbar)
@@ -1387,6 +1378,6 @@ def edit_file(path):
         editing_mode=EditingMode.EMACS,
     )
 
-    # Populate the persistent chooser on launch too, then let actual edits
-    # refresh it. Running this from after_render would create a redraw loop.
-    application.run(pre_run=lambda: on_text_changed(None))
+    # Populate the persistent chooser on launch. Future updates are handled
+    # natively by the buffer, rather than from a render callback.
+    application.run(pre_run=lambda: buffer.start_completion(select_first=False))
