@@ -877,11 +877,10 @@ def edit_file(path):
     variables = set()
     functions = set()
 
-    # The completion popup is deliberately opened by Tab. Some terminal
-    # emulators deadlock when an asynchronous completion refresh races typed
-    # brackets/quotes, so the persistent suggestion list below is rendered
-    # separately and never owns keyboard input.
-    buffer = Buffer(complete_while_typing=False)
+    # Keep the popup live while typing. Prompt Toolkit creates a completion
+    # state with no selected item, so it is a recommendation only; our Tab
+    # binding is the sole place that applies a completion to source.
+    buffer = Buffer(complete_while_typing=True)
     buffer.text = text
     saved_text = [text]
     buffer.auto_suggest = AutoSuggestFromHistory()
@@ -958,16 +957,6 @@ def edit_file(path):
             items.extend(("class:error", f" ! line {line}: {message}\n") for _level, line, message in diagnostics[:6])
         else:
             items.append(("class:line-number", "\n ✓ no static issues\n"))
-        items.append(("class:toolbar", "\n SUGGESTIONS · Tab to open\n"))
-        try:
-            suggestions = list(completer.get_completions(buffer.document, None))[:7]
-            if suggestions:
-                items.extend(("class:component-chat", f" › {suggestion.text}\n") for suggestion in suggestions)
-            else:
-                items.append(("class:line-number", " · keep typing for suggestions\n"))
-        except Exception:
-            # Diagnostics must never make the editing surface unavailable.
-            items.append(("class:line-number", " · suggestions unavailable\n"))
         return items
 
     BUILTIN_SIGNATURES = {
@@ -1082,9 +1071,8 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        # The visible suggestion panel is rendered from the current document.
-        # Do not start an async popup here: that is what froze bracket/quote
-        # input in several terminal emulators.
+        # Never start completion manually here. Buffer's native asynchronous
+        # refresh keeps the popup current without an event-loop feedback loop.
         if buffer.document.current_line.lstrip().startswith("#"):
             buffer.complete_state = None
 
@@ -1099,7 +1087,7 @@ def edit_file(path):
     if "completer" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["completer"] = completer
     if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
-        editor_kwargs["complete_while_typing"] = False
+        editor_kwargs["complete_while_typing"] = True
     editor_control = BufferControl(**editor_kwargs)
     statusbar_control = FormattedTextControl(get_statusbar)
     toolbar_control = FormattedTextControl(get_toolbar)
@@ -1362,4 +1350,6 @@ def edit_file(path):
         editing_mode=EditingMode.EMACS,
     )
 
-    application.run()
+    # Open the recommendation box immediately. select_first=False prevents
+    # anything being inserted until the user explicitly presses Tab.
+    application.run(pre_run=lambda: buffer.start_completion(select_first=False))
