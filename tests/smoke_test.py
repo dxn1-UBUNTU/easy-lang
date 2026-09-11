@@ -57,6 +57,16 @@ while total < 8:
 say total
 '''
     assert run(control_flow) == ["EASY", "8"]
+
+    workspace = '''\
+set data {"name": "easy", "rank": 1}
+say title(get(data, "name"))
+say count(keys(data))
+row "left\\nmore" | "right" [left:20]
+'''
+    workspace_output = run(workspace)
+    assert workspace_output[:2] == ["Easy", "2"]
+    assert "more" in workspace_output[4]
     print("smoke test passed")
 
 

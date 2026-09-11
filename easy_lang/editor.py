@@ -20,6 +20,7 @@ from prompt_toolkit.widgets import TextArea
 
 EASY_KEYWORDS = [
     "say",
+    "row",
     "set",
     "ask",
     "clear",
@@ -131,6 +132,13 @@ EASY_API_SERVICES = [
     "anthropic",
     "cohere",
     "http",
+    "get",
+    "keys",
+    "values",
+    "count",
+    "title",
+    "slug",
+    "sort",
 ]
 
 EASY_HTTP_METHODS = [
@@ -171,6 +179,7 @@ EASY_HASH_ALGOS = [
 
 EASY_SNIPPETS = {
     "say": 'say "$1"',
+    "row": 'row "$1" | "$2" [left:28]',
     "set": 'set $1 "$2"',
     "ask": 'ask $1 "$2"',
     "clear": "clear",
@@ -228,6 +237,7 @@ EASY_SNIPPETS = {
 
 EASY_DOCS = {
     "say": "say \"text\" [component] :color: - Print text to terminal",
+    "row": "row left | right [left:28] - Render a two-pane workspace row",
     "set": "set name value - Store a value in a variable",
     "ask": "ask name \"Prompt\" - Read input into a variable",
     "clear": "clear - Clear the terminal before rendering the next view",
@@ -300,6 +310,13 @@ EASY_DOCS = {
     "base64(": "base64(text) - Encode to base64",
     "decode(": "decode(base64_text) - Decode from base64",
     "http(": "http(url, method) - Make HTTP request",
+    "get(": "get(data, key, default) - Read a map key or list item",
+    "keys(": "keys(map) - List map keys",
+    "values(": "values(map) - List map values",
+    "count(": "count(value) - Count items or characters",
+    "title(": "title(text) - Title-case text",
+    "slug(": "slug(text) - Convert text to a URL-friendly slug",
+    "sort(": "sort(list) - Sort a list",
 }
 
 

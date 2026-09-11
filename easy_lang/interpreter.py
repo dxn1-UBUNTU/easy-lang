@@ -1,4 +1,5 @@
 import re
+import ast
 import json
 import os
 import urllib.request
@@ -104,14 +105,20 @@ def apply_bg(text, color_name):
 def parse_value(raw, memory):
     raw = raw.strip()
     if len(raw) >= 2 and raw[0] == '"' and raw[-1] == '"':
-        return raw[1:-1]
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return raw[1:-1]
     if raw in memory:
         return memory[raw]
     if raw[:1] in ("[", "{"):
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            pass
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                pass
     try:
         return int(raw)
     except ValueError:
@@ -273,12 +280,19 @@ def eval_builtins_in_string(text, memory, functions=None):
     def split_args(args_str):
         args = []
         current = ""
-        in_quote = False
+        quote = None
+        depth = 0
         for ch in args_str:
-            if ch == '"':
-                in_quote = not in_quote
+            if ch in ('"', "'"):
+                quote = None if quote == ch else ch if quote is None else quote
                 current += ch
-            elif ch == ',' and not in_quote:
+            elif quote is None and ch in "([{":
+                depth += 1
+                current += ch
+            elif quote is None and ch in ")]}":
+                depth = max(0, depth - 1)
+                current += ch
+            elif ch == ',' and quote is None and depth == 0:
                 args.append(current.strip())
                 current = ""
             else:
@@ -420,6 +434,22 @@ def format_progress(percent, width=30):
 def format_spinner(frame):
     frames = ["\u25d0", "\u25d3", "\u25d1", "\u25d2"]
     return [frames[frame % len(frames)]]
+
+
+def format_row(left, right, left_width=28, total_width=96):
+    """Render a durable two-pane workspace row for dashboards and coding UIs."""
+    left_width = max(12, min(int(left_width), total_width - 16))
+    right_width = total_width - left_width - 3
+    left_lines = str(left).split("\n")
+    right_lines = str(right).split("\n")
+    height = max(len(left_lines), len(right_lines))
+    output = [f"┌{'─' * left_width}┬{'─' * right_width}┐"]
+    for index in range(height):
+        left_line = left_lines[index] if index < len(left_lines) else ""
+        right_line = right_lines[index] if index < len(right_lines) else ""
+        output.append(f"│ {left_line[:left_width - 2]:<{left_width - 2}} │ {right_line[:right_width - 2]:<{right_width - 2}} │")
+    output.append(f"└{'─' * left_width}┴{'─' * right_width}┘")
+    return output
 
 
 def render_table(rows):
@@ -643,6 +673,35 @@ def api_call(service, params, memory):
 
 
 def builtin(name, args, memory):
+    if name == "get":
+        container = parse_value(args[0], memory) if args else {}
+        key = parse_value(args[1], memory) if len(args) > 1 else ""
+        default = parse_value(args[2], memory) if len(args) > 2 else ""
+        if isinstance(container, dict):
+            return container.get(str(key), default)
+        if isinstance(container, (list, tuple)):
+            try:
+                return container[int(key)]
+            except (ValueError, IndexError):
+                return default
+        return default
+    if name == "keys":
+        value = parse_value(args[0], memory) if args else {}
+        return list(value.keys()) if isinstance(value, dict) else []
+    if name == "values":
+        value = parse_value(args[0], memory) if args else {}
+        return list(value.values()) if isinstance(value, dict) else []
+    if name == "count":
+        value = parse_value(args[0], memory) if args else ""
+        return len(value)
+    if name == "title":
+        return str(parse_value(args[0], memory) if args else "").title()
+    if name == "slug":
+        value = str(parse_value(args[0], memory) if args else "").lower().strip()
+        return re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+    if name == "sort":
+        value = parse_value(args[0], memory) if args else []
+        return sorted(value) if isinstance(value, list) else value
     if name == "len":
         return len(parse_value(args[0], memory) if args else "")
     if name == "upper":
@@ -1014,6 +1073,16 @@ def run(source, memory=None, functions=None, allow_return=False):
                 raw_value = line[len("return"):].strip()
                 value = parse_value(eval_builtins_in_string(raw_value, memory, functions), memory)
                 raise ReturnSignal(value)
+
+            if command == "row":
+                match = re.fullmatch(r"row\s+(.+?)\s*\|\s*(.+?)(?:\s+\[left:(\d+)\])?$", line)
+                if not match:
+                    raise EasyError('row syntax is: row "left" | "right" [left:28]')
+                left_raw, right_raw, left_width = match.groups()
+                left = eval_builtins_in_string(str(parse_value(left_raw, memory)), memory, functions)
+                right = eval_builtins_in_string(str(parse_value(right_raw, memory)), memory, functions)
+                output.extend(format_row(left, right, int(left_width or 28)))
+                continue
 
             builtin_call = parse_builtin_call(line)
             if builtin_call:

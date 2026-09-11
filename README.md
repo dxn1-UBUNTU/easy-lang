@@ -2,6 +2,8 @@
 
 Easy Lang is a programmable language for **building beautiful terminal UIs, API-driven tools, and interactive command-line apps**.
 
+It is designed for more than one-line output: use its layout primitives, state, control flow, functions, and API calls to build agent workspaces, dashboards, setup tools, and other terminal applications.
+
 Instead of wrestling with ANSI escape codes, box-drawing characters, and color mappings, you just write what you want:
 
 ```easy
@@ -298,6 +300,20 @@ else:
 ```
 
 Use `if` / `else`, `for item in items:`, `for number in range(start, stop):`, and `while condition:` to control a screen or workflow. `ask name "Prompt"` captures interactive input, and `clear` redraws the terminal for the next view.
+
+## Workspaces and Data
+
+Use `row` to compose a persistent-looking two-pane terminal workspace—the core shape behind coding-agent UIs:
+
+```easy
+clear
+say "EASY AGENT  •  main  •  ollama / llama3.2" [header] :cyan:
+row "SESSIONS\n› Build editor\n  API playground" | "You\nMake autocomplete feel instant." [left:28]
+row "FILES\n  editor.py\n  interpreter.py" | "Easy\nI updated the completion engine." [left:28]
+say "Type a prompt…                         / commands   Enter send" [footer] :magenta:
+```
+
+See [`examples/agent_workspace.easy`](examples/agent_workspace.easy) for a complete runnable workspace. Data helpers include `get`, `keys`, `values`, `count`, `sort`, `title`, and `slug`, and variables accept JSON-style lists and maps.
 
 ## Full Example
 
