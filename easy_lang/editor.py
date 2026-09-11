@@ -21,6 +21,8 @@ from prompt_toolkit.widgets import TextArea
 EASY_KEYWORDS = [
     "say",
     "set",
+    "ask",
+    "clear",
     "add",
     "sub",
     "easy",
@@ -170,6 +172,8 @@ EASY_HASH_ALGOS = [
 EASY_SNIPPETS = {
     "say": 'say "$1"',
     "set": 'set $1 "$2"',
+    "ask": 'ask $1 "$2"',
+    "clear": "clear",
     "if": "if $1:\n    $2",
     "for": "for $1 in $2:\n    $3",
     "while": "while $1:\n    $2",
@@ -225,6 +229,8 @@ EASY_SNIPPETS = {
 EASY_DOCS = {
     "say": "say \"text\" [component] :color: - Print text to terminal",
     "set": "set name value - Store a value in a variable",
+    "ask": "ask name \"Prompt\" - Read input into a variable",
+    "clear": "clear - Clear the terminal before rendering the next view",
     "add": "add name value - Add to a number variable",
     "sub": "sub name value - Subtract from a number variable",
     "easy": "easy [api-call]<service>(...) - Call external services",
@@ -857,7 +863,7 @@ def edit_file(path):
         return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
     def get_toolbar():
-        return [("class:toolbar", " Easy Lang | say set add sub easy if for while func return | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
+        return [("class:toolbar", " Easy Lang | say set ask clear add sub easy if for while | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -947,11 +953,18 @@ def edit_file(path):
     def tab_complete(_):
         from prompt_toolkit.application import get_app
         app = get_app()
-        if app.current_buffer.complete_state:
-            app.current_buffer.complete_next()
+        state = app.current_buffer.complete_state
+        if state and state.completions:
+            # VS Code behaviour: Tab accepts the highlighted completion.  The
+            # old implementation only moved the highlight, so users could see
+            # a suggestion but had no single-key way to insert it.
+            completion = state.current_completion or state.completions[0]
+            app.current_buffer.apply_completion(completion)
             docs_control.text = get_doc_text()
-        else:
+        elif not buffer.document.current_line.strip():
             buffer.insert_text("    ")
+        else:
+            buffer.start_completion(select_first=True)
 
     @kb.add("s-tab")
     def shift_tab(_):

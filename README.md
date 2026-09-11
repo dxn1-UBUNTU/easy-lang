@@ -1,6 +1,6 @@
 # Easy Lang
 
-Easy Lang is a tiny language built for one thing: **making beautiful terminal UIs**.
+Easy Lang is a programmable language for **building beautiful terminal UIs, API-driven tools, and interactive command-line apps**.
 
 Instead of wrestling with ANSI escape codes, box-drawing characters, and color mappings, you just write what you want:
 
@@ -279,6 +279,26 @@ sub score 3
 say score [box] :yellow:
 ```
 
+## Logic and Functions
+
+Easy scripts can hold real application logic alongside their terminal UI.
+
+```easy
+func badge(label):
+    return upper(label)
+
+set total 0
+for number in range(1, 4):
+    add total number
+
+if total == 6:
+    say badge("ready") [box:rounded] :green:
+else:
+    say "Something went wrong" [alert] :red:
+```
+
+Use `if` / `else`, `for item in items:`, `for number in range(start, stop):`, and `while condition:` to control a screen or workflow. `ask name "Prompt"` captures interactive input, and `clear` redraws the terminal for the next view.
+
 ## Full Example
 
 ```easy
@@ -332,11 +352,13 @@ easy edit examples/hello.easy
 
 - **Ctrl+S** to save
 - **Ctrl+Q** to quit
-- **Tab / Arrow keys** for autocomplete
+- Type to open a VS Code-style completion popup — `s` suggests `say`, `set`, and other matching syntax
+- **Up / Down** to select a completion; **Tab** inserts the highlighted completion
+- **Ctrl+Space** to open completion manually
 - **Ctrl+/** to comment/uncomment lines
 - **Arrow keys** navigate and select completions
 
-Autocomplete knows all Easy syntax: keywords, components, colors, styles, layout tags, and variables as you define them.
+Autocomplete knows all Easy syntax: keywords, components, colors, styles, layout tags, built-ins, API services, and variables as you define them.
 
 ## Direct execution
 

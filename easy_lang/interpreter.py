@@ -7,11 +7,17 @@ import subprocess
 import datetime
 import random
 import math
+import textwrap
 from pathlib import Path
 
 
 class EasyError(Exception):
     pass
+
+
+class ReturnSignal(Exception):
+    def __init__(self, value):
+        self.value = value
 
 
 COLORS = {
@@ -101,6 +107,11 @@ def parse_value(raw, memory):
         return raw[1:-1]
     if raw in memory:
         return memory[raw]
+    if raw[:1] in ("[", "{"):
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
     try:
         return int(raw)
     except ValueError:
@@ -108,6 +119,29 @@ def parse_value(raw, memory):
             return float(raw)
         except ValueError:
             return raw
+
+
+def evaluate_condition(expression, memory):
+    """Evaluate a small boolean expression using program variables only."""
+    expression = re.sub(r"\btrue\b", "True", expression, flags=re.IGNORECASE)
+    expression = re.sub(r"\bfalse\b", "False", expression, flags=re.IGNORECASE)
+    try:
+        return bool(eval(expression, {"__builtins__": {}}, dict(memory)))
+    except Exception as error:
+        raise EasyError(f"invalid condition: {error}")
+
+
+def iterable_value(expression, memory):
+    expression = expression.strip()
+    range_match = re.fullmatch(r"range\(([^,]+),\s*([^\)]+)\)", expression)
+    if range_match:
+        start = int(parse_value(range_match.group(1), memory))
+        stop = int(parse_value(range_match.group(2), memory))
+        return range(start, stop)
+    value = parse_value(expression, memory)
+    if isinstance(value, (list, tuple, range, str, dict)):
+        return value
+    raise EasyError("for expects a list, string, map, or range(start, stop)")
 
 
 def parse_tags(raw):
@@ -233,7 +267,7 @@ def parse_color(raw):
     return color_code, raw
 
 
-def eval_builtins_in_string(text, memory):
+def eval_builtins_in_string(text, memory, functions=None):
     pattern = re.compile(r"([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^()]*)\)")
 
     def split_args(args_str):
@@ -296,19 +330,22 @@ def eval_builtins_in_string(text, memory):
         args_str = result[result.index('(', name_start)+1:end-1]
         args = split_args(args_str)
         try:
-            replacement = str(builtin(name, args, memory))
+            if functions and name in functions:
+                replacement = str(call_user_function(name, args, memory, functions))
+            else:
+                replacement = str(builtin(name, args, memory))
             result = result[:name_start] + replacement + result[end:]
         except EasyError:
             pass
     return result
 
 
-def parse_say_args(raw, memory):
+def parse_say_args(raw, memory, functions=None):
     raw = raw.strip()
     color_code, raw = parse_color(raw)
     component = parse_tags(raw)
     raw = strip_tags(raw)
-    raw = eval_builtins_in_string(raw, memory)
+    raw = eval_builtins_in_string(raw, memory, functions)
     value = parse_value(raw, memory)
     return str(value), component, color_code
 
@@ -839,6 +876,20 @@ def builtin(name, args, memory):
     raise EasyError(f"unknown function: {name}")
 
 
+def call_user_function(name, raw_args, memory, functions):
+    params, body = functions[name]
+    if len(raw_args) != len(params):
+        raise EasyError(f"{name} expects {len(params)} argument(s), got {len(raw_args)}")
+    local_memory = dict(memory)
+    for param, raw_value in zip(params, raw_args):
+        local_memory[param] = parse_value(raw_value, memory)
+    try:
+        run(body, local_memory, functions, allow_return=True)
+    except ReturnSignal as signal:
+        return signal.value
+    return ""
+
+
 def parse_builtin_call(line):
     line = line.strip()
     match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)$", line)
@@ -853,8 +904,9 @@ def parse_builtin_call(line):
     return name, args
 
 
-def run(source):
-    memory = {}
+def run(source, memory=None, functions=None, allow_return=False):
+    memory = {} if memory is None else memory
+    functions = {} if functions is None else functions
     config = {}
     output = []
     spinner_frame = 0
@@ -863,9 +915,26 @@ def run(source):
     lines = source.splitlines()
     line_number = 0
 
+    def block_after(start, parent_indent):
+        """Return the indented block after a control-flow line and its end."""
+        block = []
+        index = start
+        while index < len(lines):
+            candidate = lines[index]
+            stripped_candidate = candidate.strip()
+            indent = len(candidate) - len(candidate.lstrip())
+            if stripped_candidate and indent <= parent_indent:
+                break
+            block.append(candidate)
+            index += 1
+        if not any(item.strip() for item in block):
+            raise EasyError("expected an indented block")
+        return textwrap.dedent("\n".join(block)), index
+
     while line_number < len(lines):
         original_line = lines[line_number]
         line = original_line.strip()
+        indent = len(original_line) - len(original_line.lstrip())
         line_number += 1
 
         if not line or line.startswith("#"):
@@ -887,13 +956,72 @@ def run(source):
         command = parts[0]
 
         try:
+            if command == "if":
+                if not line.endswith(":"):
+                    raise EasyError("if condition must end with ':'")
+                condition = line[2:-1].strip()
+                body, line_number = block_after(line_number, indent)
+                else_body = None
+                if line_number < len(lines) and lines[line_number].strip() == "else:":
+                    else_indent = len(lines[line_number]) - len(lines[line_number].lstrip())
+                    if else_indent != indent:
+                        raise EasyError("else must align with its if")
+                    else_body, line_number = block_after(line_number + 1, indent)
+                selected = body if evaluate_condition(condition, memory) else else_body
+                if selected:
+                    output.extend(run(selected, memory, functions, allow_return))
+                continue
+
+            if command == "for":
+                match = re.fullmatch(r"for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+):", line)
+                if not match:
+                    raise EasyError("for syntax is: for item in items:")
+                name, expression = match.groups()
+                body, line_number = block_after(line_number, indent)
+                for value in iterable_value(expression, memory):
+                    memory[name] = value
+                    output.extend(run(body, memory, functions, allow_return))
+                continue
+
+            if command == "while":
+                if not line.endswith(":"):
+                    raise EasyError("while condition must end with ':'")
+                condition = line[5:-1].strip()
+                body, line_number = block_after(line_number, indent)
+                iterations = 0
+                while evaluate_condition(condition, memory):
+                    iterations += 1
+                    if iterations > 10_000:
+                        raise EasyError("while loop exceeded 10,000 iterations")
+                    output.extend(run(body, memory, functions, allow_return))
+                continue
+
+            if command == "func":
+                match = re.fullmatch(r"func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:", line)
+                if not match:
+                    raise EasyError("func syntax is: func name(arg1, arg2):")
+                name, params_raw = match.groups()
+                params = [item.strip() for item in params_raw.split(",") if item.strip()]
+                if len(set(params)) != len(params) or any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", item) for item in params):
+                    raise EasyError("function parameters must be unique names")
+                body, line_number = block_after(line_number, indent)
+                functions[name] = (params, body)
+                continue
+
+            if command == "return":
+                if not allow_return:
+                    raise EasyError("return can only be used inside a function")
+                raw_value = line[len("return"):].strip()
+                value = parse_value(eval_builtins_in_string(raw_value, memory, functions), memory)
+                raise ReturnSignal(value)
+
             builtin_call = parse_builtin_call(line)
             if builtin_call:
                 if table_buffer:
                     output.extend(render_table(table_buffer))
                     table_buffer = []
                 name, args = builtin_call
-                result = builtin(name, args, memory)
+                result = call_user_function(name, args, memory, functions) if name in functions else builtin(name, args, memory)
                 if result:
                     output.append(str(result))
                 continue
@@ -936,7 +1064,7 @@ def run(source):
 
             if command == "say":
                 raw = line[4:]
-                value, component, color_code = parse_say_args(raw, memory)
+                value, component, color_code = parse_say_args(raw, memory, functions)
                 if component["table"]:
                     table_buffer.append(value)
                     continue
@@ -955,6 +1083,15 @@ def run(source):
                 if len(parts) != 3:
                     raise EasyError("set needs a name and value")
                 memory[parts[1]] = parse_value(parts[2], memory)
+
+            elif command == "ask":
+                if len(parts) != 3:
+                    raise EasyError('ask syntax is: ask name "Prompt"')
+                prompt = str(parse_value(parts[2], memory))
+                memory[parts[1]] = input(f"{prompt} ")
+
+            elif command == "clear":
+                output.append("\033[2J\033[H")
 
             elif command in ("add", "sub"):
                 if table_buffer:
