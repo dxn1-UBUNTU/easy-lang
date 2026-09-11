@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "easy-lang"
+name = "metrix-lang"
 version = "0.1.0"
-description = "A tiny language made specifically for building beautiful terminal UIs."
+description = "A programmable language for terminal workspaces, APIs, and interactive tools."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -15,9 +15,9 @@ dependencies = [
 ]
 
 [project.scripts]
-easy = "easy_lang.cli:main"
+metrix = "metrix_lang.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["easy_lang*"]
+include = ["metrix_lang*"]
 exclude = ["install*", "tests*"]

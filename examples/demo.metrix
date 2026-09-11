@@ -1,13 +1,13 @@
-#!/usr/bin/env easy
-# Comprehensive Easy Lang Demo
+#!/usr/bin/env metrix
+# Comprehensive METRIX Demo
 
-say "Easy Lang" [header] :cyan:
+say "METRIX" [header] :cyan:
 say "All Features Demo" [box:rounded] :green:
 
 say "──────────────────────────────" [hr]
 
 say "API Calls" [header] :magenta:
-easy [api-call]<http>(url="https://jsonplaceholder.typicode.com/todos/1", method=GET)
+metrix [api-call]<http>(url="https://jsonplaceholder.typicode.com/todos/1", method=GET)
 say api_result [box] :white:
 
 say "──────────────────────────────" [hr]
@@ -18,7 +18,7 @@ say len(text) [box] :cyan:
 say upper(text) [box] :green:
 say lower(text) [box] :yellow:
 say trim("  spaced  ") [box] :white:
-say replace("hello world", "world", "Easy") [box] :blue:
+say replace("hello world", "world", "METRIX") [box] :blue:
 say contains("hello world", "world") [box] :green:
 say startswith("hello world", "hello") [box] :cyan:
 say endswith("hello world", "world") [box] :magenta:
@@ -47,7 +47,7 @@ say "─────────────────────────
 
 say "File I/O" [header] :blue:
 set filename "demo_output.txt"
-write(filename, "Hello from Easy Lang!")
+write(filename, "Hello from METRIX!")
 say read(filename) [box] :white:
 say exists(filename) [box] :green:
 say listdir(".") [box] :cyan:

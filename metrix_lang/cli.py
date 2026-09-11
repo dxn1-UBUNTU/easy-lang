@@ -4,15 +4,15 @@ import subprocess
 import os
 import shutil
 
-from easy_lang.interpreter import EasyError, run
+from metrix_lang.interpreter import EasyError, run
 
 try:
-    from easy_lang.editor import edit_file
+    from metrix_lang.editor import edit_file
 except ImportError:
     edit_file = None
 
 try:
-    from easy_lang.installer import install as installer_install
+    from metrix_lang.installer import install as installer_install
 except ImportError:
     installer_install = None
 
@@ -30,7 +30,7 @@ def run_file(args):
         print(f"file error: {error}", file=sys.stderr)
         return 1
     except EasyError as error:
-        print(f"easy error: {error}", file=sys.stderr)
+        print(f"metrix error: {error}", file=sys.stderr)
         return 1
 
     return 0
@@ -43,7 +43,7 @@ def check_file(args):
         print(f"file error: {error}", file=sys.stderr)
         return 1
     except EasyError as error:
-        print(f"easy error: {error}", file=sys.stderr)
+        print(f"metrix error: {error}", file=sys.stderr)
         return 1
 
     print("ok")
@@ -52,7 +52,7 @@ def check_file(args):
 
 def edit_file_command(args):
     if edit_file is None:
-        print("easy error: prompt_toolkit is required for the editor. Install it with: pip install prompt_toolkit pygments", file=sys.stderr)
+        print("metrix error: prompt_toolkit is required for the editor. Install it with: pip install prompt_toolkit pygments", file=sys.stderr)
         return 1
     edit_file(args.file)
     return 0
@@ -60,50 +60,50 @@ def edit_file_command(args):
 
 def install_command(args):
     if installer_install is None:
-        print("easy error: installer is unavailable.", file=sys.stderr)
+        print("metrix error: installer is unavailable.", file=sys.stderr)
         return 1
     try:
         installer_install(args.target)
     except Exception as error:
-        print(f"easy error: {error}", file=sys.stderr)
+        print(f"metrix error: {error}", file=sys.stderr)
         return 1
     return 0
 
 
 def update_command(args):
-    if getattr(args, "target", None) != "easy":
-        print("easy error: use 'easy update easy' to update Easy Lang", file=sys.stderr)
+    if getattr(args, "target", None) != "metrix":
+        print("metrix error: use 'metrix update metrix' to update METRIX", file=sys.stderr)
         return 1
-    easy_bin = shutil.which("easy")
-    if not easy_bin:
-        print("easy error: could not find easy binary in PATH", file=sys.stderr)
+    metrix_bin = shutil.which("metrix")
+    if not metrix_bin:
+        print("metrix error: could not find metrix binary in PATH", file=sys.stderr)
         return 1
 
     install_script = os.path.join(os.path.dirname(__file__), "..", "install", "install.sh")
     install_script = os.path.abspath(install_script)
 
     if not os.path.exists(install_script):
-        print(f"easy error: installer script not found at {install_script}", file=sys.stderr)
+        print(f"metrix error: installer script not found at {install_script}", file=sys.stderr)
         return 1
 
-    print("Updating Easy Lang...")
+    print("Updating METRIX...")
     result = subprocess.run(["bash", install_script], capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(f"easy error: update failed\n{result.stderr}", file=sys.stderr)
+        print(f"metrix error: update failed\n{result.stderr}", file=sys.stderr)
         return 1
 
-    print(result.stdout.strip() or "Easy updated.")
+    print(result.stdout.strip() or "METRIX updated.")
     return 0
 
 
 def repl(_args):
-    print("Easy REPL. Type exit to quit.")
+    print("METRIX REPL. Type exit to quit.")
     lines = []
 
     while True:
         try:
-            line = input("easy> ")
+            line = input("metrix> ")
         except EOFError:
             print()
             break
@@ -116,25 +116,25 @@ def repl(_args):
             for output_line in run("\n".join(lines)):
                 print(output_line)
         except EasyError as error:
-            print(f"easy error: {error}", file=sys.stderr)
+            print(f"metrix error: {error}", file=sys.stderr)
             lines.pop()
 
     return 0
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="easy", description="Run Easy language programs.")
+    parser = argparse.ArgumentParser(prog="metrix", description="Run METRIX language programs.")
     subparsers = parser.add_subparsers(dest="command")
 
-    run_parser = subparsers.add_parser("run", help="run an Easy file")
+    run_parser = subparsers.add_parser("run", help="run a METRIX file")
     run_parser.add_argument("file")
     run_parser.set_defaults(func=run_file)
 
-    check_parser = subparsers.add_parser("check", help="check an Easy file for errors")
+    check_parser = subparsers.add_parser("check", help="check a METRIX file for errors")
     check_parser.add_argument("file")
     check_parser.set_defaults(func=check_file)
 
-    edit_parser = subparsers.add_parser("edit", help="edit an Easy file")
+    edit_parser = subparsers.add_parser("edit", help="edit a METRIX file")
     edit_parser.add_argument("file")
     edit_parser.set_defaults(func=edit_file_command)
 
@@ -142,11 +142,11 @@ def build_parser():
     install_parser.add_argument("target", help="package name, npm package, GitHub repo, or URL")
     install_parser.set_defaults(func=install_command)
 
-    update_parser = subparsers.add_parser("update", help="update Easy Lang itself")
-    update_parser.add_argument("target", choices=["easy"], help="what to update")
+    update_parser = subparsers.add_parser("update", help="update METRIX itself")
+    update_parser.add_argument("target", choices=["metrix"], help="what to update")
     update_parser.set_defaults(func=update_command)
 
-    repl_parser = subparsers.add_parser("repl", help="start an interactive Easy session")
+    repl_parser = subparsers.add_parser("repl", help="start an interactive METRIX session")
     repl_parser.set_defaults(func=repl)
 
     return parser
@@ -154,7 +154,7 @@ def build_parser():
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) == 1 and argv[0].endswith(".easy"):
+    if len(argv) == 1 and argv[0].endswith(".metrix"):
         return run_file(argparse.Namespace(file=argv[0]))
 
     parser = build_parser()

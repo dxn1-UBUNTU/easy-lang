@@ -1,0 +1,10 @@
+#!/usr/bin/env metrix
+# An OpenCode-style static workspace built with METRIX primitives.
+
+clear
+say "METRIX AGENT  •  main  •  ollama / llama3.2" [header] :cyan:
+row "SESSIONS" | "workspace / METRIX" [left:28]
+row "› Build editor\n  Refactor parser\n  API playground" | "You\nMake the completion popup work like VS Code." [left:28]
+row "FILES\n  metrix_lang/editor.py\n  metrix_lang/interpreter.py\n  tests/smoke_test.py" | "METRIX\nI updated Tab to accept the highlighted suggestion." [left:28]
+row "STATUS\n  ● Connected\n  2 files changed" | "TOOL\n✓ python3 tests/smoke_test.py\n  smoke test passed" [left:28]
+say "Type a prompt…                         / commands   Enter send" [footer] :magenta:

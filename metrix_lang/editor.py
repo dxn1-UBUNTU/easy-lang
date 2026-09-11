@@ -16,6 +16,9 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.widgets import TextArea
+from prompt_toolkit.layout.containers import ConditionalContainer
+
+from metrix_lang.interpreter import EasyError, run, strip_ansi
 
 
 EASY_KEYWORDS = [
@@ -26,7 +29,7 @@ EASY_KEYWORDS = [
     "clear",
     "add",
     "sub",
-    "easy",
+    "metrix",
     "if",
     "for",
     "while",
@@ -187,7 +190,7 @@ EASY_SNIPPETS = {
     "for": "for $1 in $2:\n    $3",
     "while": "while $1:\n    $2",
     "func": "func $1($2):\n    $3",
-    "easy": 'easy [api-call]<$1>($2)',
+    "metrix": 'metrix [api-call]<$1>($2)',
     "[box]": "[box] $1",
     "[box:double]": "[box:double] $1",
     "[box:rounded]": "[box:rounded] $1",
@@ -243,7 +246,7 @@ EASY_DOCS = {
     "clear": "clear - Clear the terminal before rendering the next view",
     "add": "add name value - Add to a number variable",
     "sub": "sub name value - Subtract from a number variable",
-    "easy": "easy [api-call]<service>(...) - Call external services",
+    "metrix": "metrix [api-call]<service>(...) - Call external services",
     "if": "if condition - Conditional block",
     "for": "for item in list - Loop over items",
     "while": "while condition - Loop while condition is true",
@@ -518,8 +521,8 @@ class EasyCompleter(Completer):
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
                 return
 
-        if command == "easy":
-            if after_command or line.lower().startswith("easy "):
+        if command == "metrix":
+            if after_command or line.lower().startswith("metrix "):
                 sub = parts[1].lower() if len(parts) > 1 else ""
                 if sub.startswith("[api"):
                     angle_index = prefix.find("<")
@@ -750,6 +753,7 @@ style = Style.from_dict({
     "toolbar.status": "bg:#1e1e1e #ffffff",
     "error": "#f44747",
     "warning": "#dcdcaa",
+    "preview": "bg:#111827 #d1fae5",
 })
 
 
@@ -877,10 +881,10 @@ def edit_file(path):
         signature_info = get_signature_help() or ""
         if signature_info:
             completion_info = f" | {signature_info}{completion_info}"
-        return [("class:status", f" Easy Editor | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Complete | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
+        return [("class:status", f" METRIX Studio | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Accept | F5 Preview | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
 
     def get_toolbar():
-        return [("class:toolbar", " Easy Lang | say set ask clear add sub easy if for while | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | len upper lower trim split join replace math random now date time read write exec env hash base64 http ")]
+        return [("class:toolbar", " METRIX | say set ask clear add sub row metrix if for while func | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | get keys values count title slug sort ")]
 
     extract_variables()
     completer = EasyCompleter(sorted(variables))
@@ -923,9 +927,27 @@ def edit_file(path):
     ])
 
     docs_visible = [False]
+    preview_visible = [False]
+    preview_text = [" Preview will appear here. Press F5 to run the current program."]
 
     docs_control = FormattedTextControl(get_doc_text)
     docs_window = Window(content=docs_control, height=Dimension(min=0, preferred=8), style="class:toolbar")
+
+    preview_control = FormattedTextControl(lambda: preview_text[0])
+    preview_window = ConditionalContainer(
+        Window(content=preview_control, height=Dimension(min=3, preferred=9), style="class:preview", wrap_lines=True),
+        filter=Condition(lambda: preview_visible[0]),
+    )
+    # Keep the status bar at the bottom while allowing an on-demand live preview.
+    root_container = HSplit([
+        Window(content=toolbar_control, height=1, style="class:toolbar"),
+        VSplit([
+            Window(content=line_numbers_control, width=5, style="class:line-number"),
+            Window(content=editor_control, wrap_lines=True),
+        ]),
+        preview_window,
+        Window(content=statusbar_control, height=1, style="class:status"),
+    ])
     root_container = FloatContainer(
         root_container,
         floats=[
@@ -1104,6 +1126,21 @@ def edit_file(path):
     def show_docs(_):
         docs_visible[0] = True
         docs_control.text = get_doc_text()
+
+    @kb.add("f5")
+    def preview(_):
+        try:
+            lines = [strip_ansi(line) for line in run(buffer.text)]
+            preview_text[0] = " METRIX Preview\n\n" + ("\n".join(lines) if lines else "(no output)")
+        except EasyError as error:
+            preview_text[0] = f" METRIX Preview Error\n\n{error}"
+        preview_visible[0] = True
+        from prompt_toolkit.application import get_app
+        get_app().invalidate()
+
+    @kb.add("c-p")
+    def hide_preview(_):
+        preview_visible[0] = False
 
     @kb.add("c-h")
     def hide_docs(_):

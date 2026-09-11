@@ -999,7 +999,7 @@ def run(source, memory=None, functions=None, allow_return=False):
         if not line or line.startswith("#"):
             continue
 
-        if "=" in line and not line.startswith("[") and line.split()[0] not in ("say", "set", "add", "sub", "easy", "if", "for", "while", "func", "return"):
+        if "=" in line and not line.startswith("[") and line.split()[0] not in ("say", "set", "add", "sub", "metrix", "if", "for", "while", "func", "return"):
             if table_buffer:
                 output.extend(render_table(table_buffer))
                 table_buffer = []
@@ -1095,12 +1095,12 @@ def run(source, memory=None, functions=None, allow_return=False):
                     output.append(str(result))
                 continue
 
-            if command == "easy":
+            if command == "metrix":
                 if table_buffer:
                     output.extend(render_table(table_buffer))
                     table_buffer = []
                 if len(parts) < 2:
-                    raise EasyError("easy needs a subcommand")
+                    raise EasyError("metrix needs a subcommand")
 
                 sub = parts[1]
 
@@ -1119,7 +1119,7 @@ def run(source, memory=None, functions=None, allow_return=False):
 
                 if sub == "[api-call]":
                     if len(parts) < 3:
-                        raise EasyError("easy [api-call] needs args")
+                        raise EasyError("metrix [api-call] needs args")
                     service, api_params = parse_api_call_args(parts[2])
                     resolved_params = {}
                     for k, v in api_params.items():
@@ -1129,7 +1129,7 @@ def run(source, memory=None, functions=None, allow_return=False):
                     output.append(f"[API] {service}: {result[:200]}")
                     continue
 
-                raise EasyError(f"unknown easy subcommand: {sub}")
+                raise EasyError(f"unknown metrix subcommand: {sub}")
 
             if command == "say":
                 raw = line[4:]

@@ -1,0 +1,5 @@
+#!/usr/bin/env metrix
+say "hello from METRIX"
+set score 10
+add score 5
+say score

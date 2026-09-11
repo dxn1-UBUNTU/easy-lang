@@ -6,7 +6,7 @@ import sys
 from urllib.parse import urlparse
 
 
-EASY_PACKAGE_DIR = os.path.expanduser("~/.easy-packages")
+METRIX_PACKAGE_DIR = os.path.expanduser("~/.metrix-packages")
 
 
 def detect_package_manager():
@@ -161,7 +161,7 @@ def _ensure_pyproject_fix(dest):
     if "error: Multiple top-level packages discovered" in content:
         return
     with open(pyproject, "a", encoding="utf-8") as f:
-        f.write('\n[tool.setuptools.packages.find]\nwhere = ["."]\ninclude = ["easy_lang*"]\nexclude = ["install*", "tests*"]\n')
+        f.write('\n[tool.setuptools.packages.find]\nwhere = ["."]\ninclude = ["metrix_lang*"]\nexclude = ["install*", "tests*"]\n')
 
 
 def install_github_repo(url, target_name=None):
@@ -180,12 +180,12 @@ def install_github_repo(url, target_name=None):
         repo = repo[:-4]
     target = target_name or repo
     clone_url = f"https://github.com/{owner}/{repo}.git"
-    dest = os.path.join(EASY_PACKAGE_DIR, target)
+    dest = os.path.join(METRIX_PACKAGE_DIR, target)
 
     if os.path.exists(dest):
         subprocess.run(["git", "-C", dest, "pull", "--ff-only"], check=True)
     else:
-        os.makedirs(EASY_PACKAGE_DIR, exist_ok=True)
+        os.makedirs(METRIX_PACKAGE_DIR, exist_ok=True)
         subprocess.run(["git", "clone", clone_url, dest], check=True)
 
     _ensure_pyproject_fix(dest)
@@ -193,8 +193,8 @@ def install_github_repo(url, target_name=None):
     install_script = os.path.join(dest, "install", "install.sh")
     if os.path.exists(install_script):
         env = os.environ.copy()
-        env["EASY_INSTALL_DIR"] = os.path.expanduser("~/.easy-lang")
-        env["EASY_BIN_DIR"] = os.path.join(os.path.expanduser("~"), ".local", "bin")
+        env["METRIX_INSTALL_DIR"] = os.path.expanduser("~/.metrix-lang")
+        env["METRIX_BIN_DIR"] = os.path.join(os.path.expanduser("~"), ".local", "bin")
         subprocess.run(["bash", install_script], check=True, env=env)
         return dest
 
@@ -220,7 +220,7 @@ def install_github_repo(url, target_name=None):
 def install_from_url(url, target_name=None):
     parsed = urlparse(url)
     filename = os.path.basename(parsed.path) or target_name or "download"
-    dest_dir = os.path.join(EASY_PACKAGE_DIR, target_name or filename)
+    dest_dir = os.path.join(METRIX_PACKAGE_DIR, target_name or filename)
     os.makedirs(dest_dir, exist_ok=True)
 
     if shutil.which("curl"):
@@ -252,7 +252,7 @@ def install(target):
             local_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             local_name = os.path.basename(local_root)
             if repo == local_name and owner.lower() == "dxn1-ubuntu":
-                print(f"Installing local Easy Lang source: {local_root}")
+                print(f"Installing local METRIX source: {local_root}")
                 return _install_local(local_root)
             print(f"Installing GitHub repo: {target}")
             return install_github_repo(f"https://github.com/{target}")

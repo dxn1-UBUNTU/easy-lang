@@ -1,4 +1,4 @@
-#!/usr/bin/env easy
+#!/usr/bin/env metrix
 say "My App" [header] :cyan:
 say "user: hello" [chat:left] :cyan:
 say "bot: hi there" [chat:right] :green:
