@@ -77,6 +77,7 @@ EASY_COMPONENTS = [
     "[box:double]",
     "[box:rounded]",
     "[box:bold]",
+    "[box:dotted]",
     "[chat:left]",
     "[chat:right]",
     "[sidebar]",
@@ -92,6 +93,8 @@ EASY_COMPONENTS = [
     "[spinner]",
     "[input:prompt]",
     "[align:center]",
+    "[align:left]",
+    "[align:right]",
     "[bold]",
     "[dim]",
     "[underline]",
@@ -103,6 +106,13 @@ EASY_COMPONENTS = [
 ]
 
 EASY_BUILTINS = [
+    "get(",
+    "keys(",
+    "values(",
+    "count(",
+    "title(",
+    "slug(",
+    "sort(",
     "len(",
     "upper(",
     "lower(",
@@ -127,10 +137,28 @@ EASY_BUILTINS = [
     "listdir(",
     "exec(",
     "env(",
+    "json(",
     "hash(",
     "base64(",
     "decode(",
     "http(",
+    "first(",
+    "last(",
+    "reverse(",
+    "unique(",
+    "slice(",
+    "index(",
+    "find(",
+    "flatten(",
+    "stringify(",
+    "number(",
+    "string(",
+    "boolean(",
+    "repeat(",
+    "pad(",
+    "urlencode(",
+    "urldecode(",
+    "uuid(",
 ]
 
 EASY_API_SERVICES = [
@@ -266,6 +294,7 @@ EASY_DOCS = {
     "[box:double]": "[box:double] - Wrap text in a double-line box",
     "[box:rounded]": "[box:rounded] - Wrap text in a rounded box",
     "[box:bold]": "[box:bold] - Wrap text in a bold box",
+    "[box:dotted]": "[box:dotted] - Wrap text in a dotted box",
     "[chat:left]": "[chat:left] - Left-aligned chat bubble",
     "[chat:right]": "[chat:right] - Right-aligned chat bubble",
     "[sidebar]": "[sidebar] - Vertical sidebar panel",
@@ -281,6 +310,8 @@ EASY_DOCS = {
     "[spinner]": "[spinner] - Animated spinner",
     "[input:prompt]": "[input:prompt] - Text input prompt",
     "[align:center]": "[align:center] - Center align text",
+    "[align:left]": "[align:left] - Left align text",
+    "[align:right]": "[align:right] - Right align text",
     "[bold]": "[bold] - Bold text style",
     "[dim]": "[dim] - Dim text style",
     "[underline]": "[underline] - Underline text style",
@@ -332,6 +363,23 @@ EASY_DOCS = {
     "title(": "title(text) - Title-case text",
     "slug(": "slug(text) - Convert text to a URL-friendly slug",
     "sort(": "sort(list) - Sort a list",
+    "first(": "first(list) - Get the first item, or empty text",
+    "last(": "last(list) - Get the last item, or empty text",
+    "reverse(": "reverse(value) - Reverse a list or string",
+    "unique(": "unique(list) - Remove duplicate list items",
+    "slice(": "slice(value, start, end) - Take part of a list or string",
+    "index(": "index(list, item) - Position of an item, or -1",
+    "find(": "find(text, query) - Position of text, or -1",
+    "flatten(": "flatten(list) - Flatten one level of nested lists",
+    "stringify(": "stringify(value) - Encode data as JSON text",
+    "number(": "number(value) - Convert text to a number",
+    "string(": "string(value) - Convert any value to text",
+    "boolean(": "boolean(value) - Convert a value to true or false",
+    "repeat(": "repeat(text, times) - Repeat text",
+    "pad(": "pad(text, width, side) - Pad text left, right, or center",
+    "urlencode(": "urlencode(text) - URL encode text",
+    "urldecode(": "urldecode(text) - Decode URL text",
+    "uuid(": "uuid() - Make a random UUID",
 }
 
 
@@ -356,6 +404,9 @@ def fuzzy_score(query, candidate):
 def fuzzy_score_vscode(query, candidate):
     q = query.lower()
     c = candidate.lower()
+    # Empty input is a browse state: show all options instead of an empty menu.
+    if not q:
+        return 1
     if q == c:
         return 100
     if c.startswith(q):
@@ -412,8 +463,9 @@ COMPLETION_KINDS = {
 
 
 class EasyCompleter(Completer):
-    def __init__(self, variables=None):
+    def __init__(self, variables=None, functions=None):
         self.variables = variables or []
+        self.functions = functions or []
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
@@ -423,10 +475,18 @@ class EasyCompleter(Completer):
         lower_word = word.lower()
 
         if not stripped:
-            scored = [(fuzzy_score_vscode(lower_word, kw), kw, "keyword") for kw in EASY_KEYWORDS]
-            for score, kw, kind in sorted(scored, key=lambda item: item[0], reverse=True):
+            # A new line is the command palette.  Show the full language
+            # catalogue, not merely a handful of starter keywords.
+            candidates = (
+                [(item, "keyword") for item in EASY_KEYWORDS]
+                + [(item, "component") for item in EASY_COMPONENTS]
+                + [(item, "color") for item in EASY_COLORS]
+                + [(item, "builtin") for item in EASY_BUILTINS]
+            )
+            scored = [(fuzzy_score_vscode(lower_word, item), item, kind) for item, kind in candidates]
+            for score, item, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                 if score > 0:
-                    yield Completion(kw, start_position=-len(word) or 0, display=kw, display_meta=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
+                    yield Completion(item, start_position=-len(word) or 0, display=item, display_meta=EASY_DOCS.get(item, ""), style="bg:#1e1e1e #ffffff")
             return
 
         if word.endswith("."):
@@ -582,7 +642,12 @@ class EasyCompleter(Completer):
                 yield Completion(method, start_position=-len(word) or 0, display=method, display_meta=f"HTTP method: {method}", style="bg:#1e1e1e #ffffff")
             return
 
-        all_options = [(kw, "keyword") for kw in EASY_KEYWORDS] + [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "builtin") for c in (EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS)]
+        all_options = (
+            [(kw, "keyword") for kw in EASY_KEYWORDS]
+            + [(name + "(", "function") for name in self.functions]
+            + [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "builtin") for c in (EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS)]
+            + [(v, "variable") for v in self.variables]
+        )
         scored = [(fuzzy_score_vscode(lower_word, opt), opt, kind) for opt, kind in all_options]
         seen = set()
         for score, opt, kind in sorted(scored, key=lambda item: item[0], reverse=True):
@@ -780,25 +845,34 @@ def edit_file(path):
 
     lexer = EasyLexer()
     variables = set()
+    functions = set()
 
-    buffer = Buffer(complete_while_typing=True)
+    # Completion is refreshed by our text-change handler. Keeping Prompt
+    # Toolkit's own auto-completion off prevents it from ever committing the
+    # highlighted item while the user is still typing.
+    buffer = Buffer(complete_while_typing=False)
     buffer.text = text
     saved_text = [text]
     buffer.auto_suggest = AutoSuggestFromHistory()
 
     def extract_variables():
-        nonlocal variables
+        nonlocal variables, functions
         variables = set()
+        functions = set()
         for line in buffer.text.splitlines():
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
             parts = stripped.split()
-            if len(parts) >= 2 and parts[0] == "set":
+            if len(parts) >= 2 and parts[0] in {"set", "let"}:
                 variables.add(parts[1])
+            if stripped.startswith("func "):
+                match = re.match(r"func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", stripped)
+                if match:
+                    functions.add(match.group(1))
 
     extract_variables()
-    completer = EasyCompleter(sorted(variables))
+    completer = EasyCompleter(sorted(variables), sorted(functions))
     buffer.completer = completer
 
     def get_line_numbers():
@@ -886,6 +960,23 @@ def edit_file(path):
         "base64": "base64(text)",
         "decode": "decode(base64_text)",
         "http": "http(url, method)",
+        "first": "first(list)",
+        "last": "last(list)",
+        "reverse": "reverse(value)",
+        "unique": "unique(list)",
+        "slice": "slice(value, start, end)",
+        "index": "index(list, item)",
+        "find": "find(text, query)",
+        "flatten": "flatten(list)",
+        "stringify": "stringify(value)",
+        "number": "number(value)",
+        "string": "string(value)",
+        "boolean": "boolean(value)",
+        "repeat": "repeat(text, times)",
+        "pad": "pad(text, width, side)",
+        "urlencode": "urlencode(text)",
+        "urldecode": "urldecode(text)",
+        "uuid": "uuid()",
     }
 
     def get_signature_help():
@@ -937,17 +1028,30 @@ def edit_file(path):
         return [("class:toolbar", " METRIX | say set ask clear add sub row metrix if for while func | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | get keys values count title slug sort ")]
 
     extract_variables()
-    completer = EasyCompleter(sorted(variables))
+    completer.variables = sorted(variables)
+    completer.functions = sorted(functions)
+    buffer.completer = completer
 
     def on_text_changed(_):
         extract_variables()
         completer.variables = sorted(variables)
+        completer.functions = sorted(functions)
         line_numbers_control.text = get_line_numbers()
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        # Completion is deliberately explicit: typing never opens a menu.
-        # Press Tab when you want suggestions for the word at the cursor.
+        # Keep the recommendation box live, exactly like an editor.  Crucially
+        # select_first=False means it is only a visual recommendation: it
+        # cannot alter source until the user explicitly presses Tab.
+        if buffer.document.current_line.lstrip().startswith("#"):
+            buffer.complete_state = None
+            return
+        try:
+            buffer.start_completion(select_first=False)
+        except RuntimeError:
+            # Prompt Toolkit can reject a refresh while the application is
+            # shutting down; the editor should still be able to save/exit.
+            pass
 
     buffer.on_text_changed += on_text_changed
 
@@ -960,7 +1064,9 @@ def edit_file(path):
     if "completer" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["completer"] = completer
     if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
-        editor_kwargs["complete_while_typing"] = True
+        # We refresh in on_text_changed above so we can force no auto-accept
+        # consistently across Prompt Toolkit versions.
+        editor_kwargs["complete_while_typing"] = False
     editor_control = BufferControl(**editor_kwargs)
     statusbar_control = FormattedTextControl(get_statusbar)
     toolbar_control = FormattedTextControl(get_toolbar)
@@ -1278,8 +1384,9 @@ def edit_file(path):
         style=style,
         full_screen=True,
         mouse_support=True,
-        after_render=on_text_changed,
         editing_mode=EditingMode.EMACS,
     )
 
-    application.run()
+    # Populate the persistent chooser on launch too, then let actual edits
+    # refresh it. Running this from after_render would create a redraw loop.
+    application.run(pre_run=lambda: on_text_changed(None))

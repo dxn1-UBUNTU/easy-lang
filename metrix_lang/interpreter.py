@@ -4,6 +4,7 @@ import json
 import os
 import urllib.request
 import urllib.error
+import urllib.parse
 import subprocess
 import datetime
 import random
@@ -741,6 +742,85 @@ def builtin(name, args, memory):
     if name == "sort":
         value = parse_value(args[0], memory) if args else []
         return sorted(value) if isinstance(value, list) else value
+    if name == "first":
+        value = parse_value(args[0], memory) if args else []
+        return value[0] if isinstance(value, (list, tuple, str)) and value else ""
+    if name == "last":
+        value = parse_value(args[0], memory) if args else []
+        return value[-1] if isinstance(value, (list, tuple, str)) and value else ""
+    if name == "reverse":
+        value = parse_value(args[0], memory) if args else []
+        if isinstance(value, str):
+            return value[::-1]
+        if isinstance(value, (list, tuple)):
+            return list(reversed(value))
+        return value
+    if name == "unique":
+        value = parse_value(args[0], memory) if args else []
+        if not isinstance(value, list):
+            return value
+        result = []
+        for item in value:
+            if item not in result:
+                result.append(item)
+        return result
+    if name == "slice":
+        value = parse_value(args[0], memory) if args else ""
+        start = int(parse_value(args[1], memory)) if len(args) > 1 else 0
+        end = int(parse_value(args[2], memory)) if len(args) > 2 else None
+        return value[start:end]
+    if name == "index":
+        value = parse_value(args[0], memory) if args else []
+        item = parse_value(args[1], memory) if len(args) > 1 else ""
+        try:
+            return value.index(item)
+        except (ValueError, AttributeError):
+            return -1
+    if name == "find":
+        value = str(parse_value(args[0], memory) if args else "")
+        query = str(parse_value(args[1], memory) if len(args) > 1 else "")
+        return value.find(query)
+    if name == "flatten":
+        value = parse_value(args[0], memory) if args else []
+        if not isinstance(value, list):
+            return value
+        return [child for item in value for child in (item if isinstance(item, list) else [item])]
+    if name == "stringify":
+        value = parse_value(args[0], memory) if args else None
+        return json.dumps(value, ensure_ascii=False)
+    if name == "number":
+        value = str(parse_value(args[0], memory) if args else "0")
+        try:
+            return float(value) if "." in value else int(value)
+        except ValueError:
+            raise EasyError(f"number expects numeric text, got {value!r}")
+    if name == "string":
+        return str(parse_value(args[0], memory) if args else "")
+    if name == "boolean":
+        value = parse_value(args[0], memory) if args else False
+        if isinstance(value, str):
+            return value.strip().lower() not in {"", "0", "false", "no", "null", "none"}
+        return bool(value)
+    if name == "repeat":
+        value = str(parse_value(args[0], memory) if args else "")
+        times = int(parse_value(args[1], memory)) if len(args) > 1 else 1
+        return value * max(0, times)
+    if name == "pad":
+        value = str(parse_value(args[0], memory) if args else "")
+        width = int(parse_value(args[1], memory)) if len(args) > 1 else len(value)
+        side = str(parse_value(args[2], memory) if len(args) > 2 else "right").lower()
+        if side == "left":
+            return value.rjust(width)
+        if side == "center":
+            return value.center(width)
+        return value.ljust(width)
+    if name == "urlencode":
+        return urllib.parse.quote_plus(str(parse_value(args[0], memory) if args else ""))
+    if name == "urldecode":
+        return urllib.parse.unquote_plus(str(parse_value(args[0], memory) if args else ""))
+    if name == "uuid":
+        import uuid
+        return str(uuid.uuid4())
     if name == "len":
         return len(parse_value(args[0], memory) if args else "")
     if name == "upper":

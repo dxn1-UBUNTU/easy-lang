@@ -82,6 +82,18 @@ say "let x = 42" [code]
 
     suggestions = list(EasyCompleter().get_completions(Document("s", cursor_position=1), None))
     assert suggestions[0].text == "say"
+    all_suggestions = list(EasyCompleter().get_completions(Document("", cursor_position=0), None))
+    assert len(all_suggestions) >= 80
+    assert {"say", "[box:dotted]", "uuid(", "urlencode("} <= {item.text for item in all_suggestions}
+
+    toolkit = '''\
+set words ["metrix", "studio", "metrix"]
+say join(unique(words), ",")
+say reverse("abc")
+say slice("terminal", 0, 4)
+say urlencode("hello world")
+'''
+    assert run(toolkit) == ["metrix,studio", "cba", "term", "hello+world"]
     print("smoke test passed")
 
 
