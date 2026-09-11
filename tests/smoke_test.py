@@ -6,11 +6,13 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from metrix_lang.interpreter import run
+from metrix_lang.editor import EasyCompleter
+from prompt_toolkit.document import Document
 
 
 def main():
     result = subprocess.run(
-        ["python3", "-m", "metrix_lang.cli", "run", "examples/hello.metrix"],
+        ["python3", "-m", "metrix_lang.cli", "run", "examples/hello.met"],
         cwd=PROJECT_ROOT,
         text=True,
         capture_output=True,
@@ -21,7 +23,7 @@ def main():
     assert result.stdout == "hello from METRIX\n15\n"
 
     direct_result = subprocess.run(
-        ["python3", "-m", "metrix_lang.cli", "examples/hello.metrix"],
+        ["python3", "-m", "metrix_lang.cli", "examples/hello.met"],
         cwd=PROJECT_ROOT,
         text=True,
         capture_output=True,
@@ -32,7 +34,7 @@ def main():
     assert direct_result.stdout == "hello from METRIX\n15\n"
 
     check_result = subprocess.run(
-        ["python3", "-m", "metrix_lang.cli", "check", "examples/hello.metrix"],
+        ["python3", "-m", "metrix_lang.cli", "check", "examples/hello.met"],
         cwd=PROJECT_ROOT,
         text=True,
         capture_output=True,
@@ -77,6 +79,9 @@ say "let x = 42" [code]
     enhanced_output = run(enhanced_ui)
     assert enhanced_output[0] == "[ Metrix ]"
     assert enhanced_output[1].startswith("┌")
+
+    suggestions = list(EasyCompleter().get_completions(Document("s", cursor_position=1), None))
+    assert suggestions[0].text == "say"
     print("smoke test passed")
 
 

@@ -154,7 +154,7 @@ def build_parser():
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) == 1 and argv[0].endswith(".metrix"):
+    if len(argv) == 1 and argv[0].endswith((".met", ".metrix")):
         return run_file(argparse.Namespace(file=argv[0]))
 
     parser = build_parser()

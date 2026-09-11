@@ -13,8 +13,8 @@ curl -fsSL https://raw.githubusercontent.com/dxn1-UBUNTU/METRIX/main/install/ins
 Then run METRIX from anywhere:
 
 ```bash
-metrix run examples/agent_workspace.metrix
-metrix edit examples/agent_workspace.metrix
+m run examples/agent_workspace.met
+m edit examples/agent_workspace.met
 metrix repl
 ```
 
@@ -33,7 +33,7 @@ say "Type a prompt…                         / commands   Enter send" [footer] 
 Run the complete example with:
 
 ```bash
-metrix run examples/agent_workspace.metrix
+m run examples/agent_workspace.met
 ```
 
 ## Language features
@@ -67,11 +67,12 @@ The built-in editor is designed for fast terminal development:
 - **Ctrl+S** saves, **Ctrl+Q** exits, **Ctrl+/** comments a line, and **F1** opens documentation.
 - **F5** runs the current program into an in-editor preview panel; **Ctrl+P** closes it.
 - **F6** trims trailing whitespace, while the status bar tracks saved versus unsaved changes.
+- A permanent **METRIX Explorer** shows functions, state, API calls, UI sections, and simple static diagnostics beside the source.
 - Completion understands syntax, components, colors, APIs, functions, snippets, and variables declared in the current file.
 
 ## Safety
 
-METRIX can run commands, read environment variables, make web requests, and modify files. Treat unknown `.metrix` programs as code: inspect them before running them.
+METRIX can run commands, read environment variables, make web requests, and modify files. Treat unknown `.met` programs as code: inspect them before running them.
 
 ## Development
 

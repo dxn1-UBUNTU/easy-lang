@@ -34,9 +34,11 @@ fi
 python3 -m venv "$INSTALL_DIR/.venv"
 "$INSTALL_DIR/.venv/bin/python" -m pip install -e "$INSTALL_DIR"
 ln -sf "$INSTALL_DIR/.venv/bin/metrix" "$BIN_DIR/metrix"
+ln -sf "$INSTALL_DIR/.venv/bin/m" "$BIN_DIR/m"
 
 echo "METRIX installed."
 echo "Command: $BIN_DIR/metrix"
+echo "Shortcut: $BIN_DIR/m"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;

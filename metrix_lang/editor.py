@@ -8,7 +8,7 @@ from prompt_toolkit.layout.controls import BufferControl
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, to_formatted_text
 from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.search import SearchState
@@ -17,6 +17,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.layout.containers import ConditionalContainer
+from prompt_toolkit.layout.menus import CompletionsMenu
 
 from metrix_lang.interpreter import EasyError, run, strip_ansi
 
@@ -423,7 +424,7 @@ class EasyCompleter(Completer):
 
         if not stripped:
             scored = [(fuzzy_score_vscode(lower_word, kw), kw, "keyword") for kw in EASY_KEYWORDS]
-            for score, kw, kind in sorted(scored, reverse=True):
+            for score, kw, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                 if score > 0:
                     yield Completion(kw, start_position=-len(word) or 0, display=kw, display_meta=EASY_DOCS.get(kw, ""), style="bg:#1e1e1e #ffffff")
             return
@@ -436,7 +437,7 @@ class EasyCompleter(Completer):
                     yield Completion(method, start_position=-1, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
                 return
             scored = [(fuzzy_score_vscode(method_name, m), m, kind) for m, kind in candidates]
-            for score, method, kind in sorted(scored, reverse=True):
+            for score, method, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                 if score > 0:
                     yield Completion(method, start_position=-len(method_name) or 0, display=method, display_meta=EASY_DOCS.get(method, f"String method: {method}()"), style="bg:#1e1e1e #ffffff")
             if not any(True for _ in []):
@@ -460,7 +461,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("say "):
                 candidates = [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "variable") for c in (EASY_COMPONENTS + EASY_COLORS + list(self.variables))]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         doc = EASY_DOCS.get(cand, "Variable" if cand in self.variables else "")
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
@@ -470,7 +471,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("set "):
                 candidates = [("value", "snippet")] + [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         doc = "Literal value or variable" if cand == "value" else "Variable"
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
@@ -480,7 +481,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith(f"{command} "):
                 candidates = [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Variable", style="bg:#1e1e1e #ffffff")
                 return
@@ -489,7 +490,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("for "):
                 candidates = [("item", "snippet")] + [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         doc = "Loop variable" if cand == "item" else "Variable"
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
@@ -499,7 +500,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("if "):
                 candidates = ["condition"]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, "keyword") for c in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Condition expression", style="bg:#1e1e1e #ffffff")
                 return
@@ -508,7 +509,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("while "):
                 candidates = ["condition"]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, "keyword") for c in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Condition expression", style="bg:#1e1e1e #ffffff")
                 return
@@ -517,7 +518,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("func "):
                 candidates = [("name", "snippet")]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta="Function name", style="bg:#1e1e1e #ffffff")
                 return
@@ -526,7 +527,7 @@ class EasyCompleter(Completer):
             if after_command or line.lower().startswith("return "):
                 candidates = [("value", "snippet")] + [(v, "variable") for v in self.variables]
                 scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-                for score, cand, kind in sorted(scored, reverse=True):
+                for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                     if score > 0:
                         doc = "Return value" if cand == "value" else "Variable"
                         yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=doc, style="bg:#1e1e1e #ffffff")
@@ -550,7 +551,7 @@ class EasyCompleter(Completer):
         if stripped.startswith(":") and not stripped.endswith(":"):
             candidates = [(c, "color") for c in EASY_COLORS]
             scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-            for score, cand, kind in sorted(scored, reverse=True):
+            for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                 if score > 0:
                     yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=EASY_DOCS.get(cand, ""), style="bg:#1e1e1e #ffffff")
             return
@@ -558,7 +559,7 @@ class EasyCompleter(Completer):
         if stripped.startswith("[") and not stripped.endswith("]"):
             candidates = [(c, "component") for c in EASY_COMPONENTS]
             scored = [(fuzzy_score_vscode(lower_word, c), c, kind) for c, kind in candidates]
-            for score, cand, kind in sorted(scored, reverse=True):
+            for score, cand, kind in sorted(scored, key=lambda item: item[0], reverse=True):
                 if score > 0:
                     yield Completion(cand, start_position=-len(word) or 0, display=cand, display_meta=EASY_DOCS.get(cand, ""), style="bg:#1e1e1e #ffffff")
             return
@@ -584,7 +585,7 @@ class EasyCompleter(Completer):
         all_options = [(kw, "keyword") for kw in EASY_KEYWORDS] + [(c, "component" if c.startswith("[") else "color" if c.startswith(":") else "builtin") for c in (EASY_COMPONENTS + EASY_COLORS + EASY_BUILTINS)]
         scored = [(fuzzy_score_vscode(lower_word, opt), opt, kind) for opt, kind in all_options]
         seen = set()
-        for score, opt, kind in sorted(scored, reverse=True):
+        for score, opt, kind in sorted(scored, key=lambda item: item[0], reverse=True):
             if opt not in seen and score > 0:
                 seen.add(opt)
                 yield Completion(opt, start_position=-len(word) or 0, display=opt, display_meta=EASY_DOCS.get(opt, ""), style="bg:#1e1e1e #ffffff")
@@ -782,6 +783,7 @@ def edit_file(path):
 
     buffer = Buffer(complete_while_typing=True)
     buffer.text = text
+    saved_text = [text]
     buffer.auto_suggest = AutoSuggestFromHistory()
 
     def extract_variables():
@@ -817,11 +819,43 @@ def edit_file(path):
         completion = buffer.complete_state.current_completion
         if not completion:
             return []
-        doc = getattr(completion, "display_meta", None) or ""
+        doc = completion_metadata(completion)
         if not doc:
             return []
         lines = doc.splitlines()
         return [("class:toolbar", f" {lines[0]}" + (f"\n {' '.join(lines[1:])}" if len(lines) > 1 else ""))]
+
+    def completion_metadata(completion):
+        """Prompt Toolkit may provide display metadata as formatted fragments."""
+        value = getattr(completion, "display_meta", None) or ""
+        return "".join(fragment[1] for fragment in to_formatted_text(value))
+
+    def get_outline():
+        """A lightweight explorer that makes large METRIX files navigable."""
+        items = [("class:toolbar", " METRIX EXPLORER\n")]
+        diagnostics = []
+        for number, source_line in enumerate(buffer.text.splitlines(), start=1):
+            stripped = source_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("func "):
+                items.append(("class:keyword", f" ƒ  {stripped[5:].rstrip(':')}\n"))
+            elif stripped.startswith(("set ", "let ")):
+                parts = stripped.split()
+                if len(parts) > 1:
+                    items.append(("class:line-number", f" ◇  {parts[1]}\n"))
+            elif stripped.startswith("metrix [api-call]"):
+                items.append(("class:component-chat", f" ◉  API call · line {number}\n"))
+            elif stripped.startswith(("row ", "say ")) and any(tag in stripped for tag in ("[header]", "[footer]", "[sidebar]", "[chat:")):
+                items.append(("class:component-box", f" ▣  UI · line {number}\n"))
+            if stripped.split()[0] in {"if", "for", "while", "func"} and not stripped.endswith(":"):
+                diagnostics.append(f" ! line {number}: expected ':'")
+        if diagnostics:
+            items.append(("class:error", "\n DIAGNOSTICS\n"))
+            items.extend(("class:error", f"{line}\n") for line in diagnostics[:5])
+        else:
+            items.append(("class:line-number", "\n ✓ no static issues\n"))
+        return items
 
     BUILTIN_SIGNATURES = {
         "len": "len(text)",
@@ -889,12 +923,15 @@ def edit_file(path):
         completion_info = ""
         if buffer.complete_state:
             completion = buffer.complete_state.current_completion
-            if completion and getattr(completion, "display_meta", None):
-                completion_info = f" | {completion.display_meta}"
+            if completion:
+                metadata = completion_metadata(completion)
+                if metadata:
+                    completion_info = f" | {metadata}"
         signature_info = get_signature_help() or ""
         if signature_info:
             completion_info = f" | {signature_info}{completion_info}"
-        return [("class:status", f" METRIX Studio | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | Tab Accept | F5 Preview | Ctrl+S Save | Ctrl+Q Quit | Ctrl+/ Comment | F1 Docs ")]
+        changed = "● unsaved" if buffer.text != saved_text[0] else "✓ saved"
+        return [("class:status", f" METRIX Studio | {changed} | {path} | {mode} | Ln {line}/{total}, Col {col}{completion_info} | ↑↓ Select · Tab Accept · F5 Preview · Ctrl+S Save · Ctrl+Q Quit ")]
 
     def get_toolbar():
         return [("class:toolbar", " METRIX | say set ask clear add sub row metrix if for while func | [box] [chat] [sidebar] [header] [footer] [alert] [list] [table] [progress] [spinner] | :green: :red: :blue: :cyan: | get keys values count title slug sort ")]
@@ -909,15 +946,17 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        if not buffer.complete_state:
+        word = buffer.document.get_word_before_cursor(WORD=True)
+        if word and not buffer.complete_state:
             try:
-                buffer.start_completion(select_first=False)
+                buffer.start_completion(select_first=True)
             except RuntimeError:
                 pass
 
     buffer.on_text_changed += on_text_changed
 
     line_numbers_control = FormattedTextControl(get_line_numbers)
+    outline_control = FormattedTextControl(get_outline)
     editor_kwargs = {
         "buffer": buffer,
         "lexer": lexer,
@@ -935,6 +974,8 @@ def edit_file(path):
         VSplit([
             Window(content=line_numbers_control, width=5, style="class:line-number"),
             Window(content=editor_control, wrap_lines=True),
+            Window(width=1, char="│", style="class:line-number"),
+            Window(content=outline_control, width=30, style="class:toolbar", wrap_lines=True),
         ]),
         Window(content=statusbar_control, height=1, style="class:status"),
     ])
@@ -957,6 +998,8 @@ def edit_file(path):
         VSplit([
             Window(content=line_numbers_control, width=5, style="class:line-number"),
             Window(content=editor_control, wrap_lines=True),
+            Window(width=1, char="│", style="class:line-number"),
+            Window(content=outline_control, width=30, style="class:toolbar", wrap_lines=True),
         ]),
         preview_window,
         Window(content=statusbar_control, height=1, style="class:status"),
@@ -964,6 +1007,11 @@ def edit_file(path):
     root_container = FloatContainer(
         root_container,
         floats=[
+            Float(
+                content=CompletionsMenu(max_height=12, scroll_offset=1, display_arrows=True),
+                xcursor=True,
+                ycursor=True,
+            ),
             Float(
                 content=docs_window,
                 xcursor=True,
@@ -980,6 +1028,7 @@ def edit_file(path):
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(buffer.text)
+            saved_text[0] = buffer.text
             on_text_changed(None)
         except Exception as e:
             print(f"Error saving: {e}", file=sys.stderr)
@@ -1069,6 +1118,7 @@ def edit_file(path):
             buffer.cursor_down()
 
     @kb.add("backspace")
+    @kb.add("c-h")
     def backspace(_):
         buffer.delete_before_cursor()
 
@@ -1154,11 +1204,6 @@ def edit_file(path):
     @kb.add("c-p")
     def hide_preview(_):
         preview_visible[0] = False
-
-    @kb.add("c-h")
-    def hide_docs(_):
-        docs_visible[0] = False
-        docs_control.text = get_doc_text()
 
     @kb.add("escape")
     def hide_docs_escape(_):
