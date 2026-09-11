@@ -794,6 +794,14 @@ class EasyLexer(Lexer):
                 j = i
                 while j < len(line) and not line[j].isspace() and line[j] != '"' and line[j] != ":" and line[j] != "[":
                     j += 1
+                # A partial tag (`[`) or color (`:`) reaches this fallback
+                # while the user is typing.  It is not a completed token yet,
+                # but we still must consume it; leaving i unchanged here used
+                # to spin the lexer forever and freeze the whole terminal.
+                if j == i:
+                    tokens.append(("", line[i]))
+                    i += 1
+                    continue
                 word = line[i:j]
                 if word in EASY_KEYWORDS:
                     tokens.append(("class:keyword", word))
@@ -869,10 +877,11 @@ def edit_file(path):
     variables = set()
     functions = set()
 
-    # Prompt Toolkit refreshes this asynchronously after every keystroke.
-    # Its native path uses select_first=False, so the list is live but nothing
-    # is inserted until our explicit Tab binding accepts an item.
-    buffer = Buffer(complete_while_typing=True)
+    # The completion popup is deliberately opened by Tab. Some terminal
+    # emulators deadlock when an asynchronous completion refresh races typed
+    # brackets/quotes, so the persistent suggestion list below is rendered
+    # separately and never owns keyboard input.
+    buffer = Buffer(complete_while_typing=False)
     buffer.text = text
     saved_text = [text]
     buffer.auto_suggest = AutoSuggestFromHistory()
@@ -949,6 +958,16 @@ def edit_file(path):
             items.extend(("class:error", f" ! line {line}: {message}\n") for _level, line, message in diagnostics[:6])
         else:
             items.append(("class:line-number", "\n ✓ no static issues\n"))
+        items.append(("class:toolbar", "\n SUGGESTIONS · Tab to open\n"))
+        try:
+            suggestions = list(completer.get_completions(buffer.document, None))[:7]
+            if suggestions:
+                items.extend(("class:component-chat", f" › {suggestion.text}\n") for suggestion in suggestions)
+            else:
+                items.append(("class:line-number", " · keep typing for suggestions\n"))
+        except Exception:
+            # Diagnostics must never make the editing surface unavailable.
+            items.append(("class:line-number", " · suggestions unavailable\n"))
         return items
 
     BUILTIN_SIGNATURES = {
@@ -1063,9 +1082,9 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        # Do not start completions from this callback.  Restarting a completion
-        # while Prompt Toolkit is processing the same edit can freeze the TUI.
-        # Buffer(complete_while_typing=True) refreshes it safely instead.
+        # The visible suggestion panel is rendered from the current document.
+        # Do not start an async popup here: that is what froze bracket/quote
+        # input in several terminal emulators.
         if buffer.document.current_line.lstrip().startswith("#"):
             buffer.complete_state = None
 
@@ -1080,7 +1099,7 @@ def edit_file(path):
     if "completer" in BufferControl.__init__.__code__.co_varnames:
         editor_kwargs["completer"] = completer
     if "complete_while_typing" in BufferControl.__init__.__code__.co_varnames:
-        editor_kwargs["complete_while_typing"] = True
+        editor_kwargs["complete_while_typing"] = False
     editor_control = BufferControl(**editor_kwargs)
     statusbar_control = FormattedTextControl(get_statusbar)
     toolbar_control = FormattedTextControl(get_toolbar)
@@ -1241,64 +1260,6 @@ def edit_file(path):
     def backspace(_):
         buffer.delete_before_cursor()
 
-    @kb.add("(")
-    def insert_paren(_):
-        buffer.insert_text("()")
-        buffer.cursor_left()
-
-    @kb.add("[")
-    def insert_bracket(_):
-        buffer.insert_text("[]")
-        buffer.cursor_left()
-
-    @kb.add("{")
-    def insert_brace(_):
-        buffer.insert_text("{}")
-        buffer.cursor_left()
-
-    @kb.add("\"")
-    def insert_double_quote(_):
-        buffer.insert_text("\"\"")
-        buffer.cursor_left()
-
-    @kb.add("'")
-    def insert_single_quote(_):
-        buffer.insert_text("''")
-        buffer.cursor_left()
-
-    @kb.add(")")
-    def close_paren(_):
-        if buffer.document.current_char == ")":
-            buffer.cursor_right()
-        else:
-            buffer.insert_text(")")
-
-    @kb.add("]")
-    def close_bracket(_):
-        if buffer.document.current_char == "]":
-            buffer.cursor_right()
-        else:
-            buffer.insert_text("]")
-
-    @kb.add("}")
-    def close_brace(_):
-        if buffer.document.current_char == "}":
-            buffer.cursor_right()
-        else:
-            buffer.insert_text("}")
-
-    @kb.add("<")
-    def insert_angle(_):
-        buffer.insert_text("<>")
-        buffer.cursor_left()
-
-    @kb.add(">")
-    def close_angle(_):
-        if buffer.document.current_char == ">":
-            buffer.cursor_right()
-        else:
-            buffer.insert_text(">")
-
     @kb.add("f1")
     def show_docs(_):
         docs_visible[0] = True
@@ -1401,6 +1362,4 @@ def edit_file(path):
         editing_mode=EditingMode.EMACS,
     )
 
-    # Populate the persistent chooser on launch. Future updates are handled
-    # natively by the buffer, rather than from a render callback.
-    application.run(pre_run=lambda: buffer.start_completion(select_first=False))
+    application.run()

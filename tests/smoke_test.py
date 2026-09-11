@@ -6,7 +6,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from metrix_lang.interpreter import check_source, run
-from metrix_lang.editor import EasyCompleter
+from metrix_lang.editor import EasyCompleter, EasyLexer
 from prompt_toolkit.document import Document
 
 
@@ -110,6 +110,11 @@ say "" [rule] [width:28]
     errors = check_source(invalid)
     assert any("expected an indented block" in message for _level, _line, message in errors)
     assert any("unknown or invalid UI tag" in message for _level, _line, message in errors)
+
+    # Partial tags and colors are normal while editing. The lexer must advance
+    # over them instead of locking up the terminal render loop.
+    partial_lexer = EasyLexer().lex_document(Document('[panel: #7dd3fc'))
+    assert partial_lexer(0)
     print("smoke test passed")
 
 
