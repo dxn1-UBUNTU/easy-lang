@@ -4,6 +4,13 @@ import subprocess
 import os
 import shutil
 
+
+RESET = "\033[0m"
+CYAN = "\033[96m"
+PURPLE = "\033[95m"
+MUTED = "\033[90m"
+BOLD = "\033[1m"
+
 from metrix_lang.interpreter import EasyError, run
 
 try:
@@ -20,6 +27,26 @@ except ImportError:
 def read_source(path):
     with open(path, "r", encoding="utf-8") as file:
         return file.read()
+
+
+def home_screen():
+    """A useful landing screen for `metrix` and the short `m` command."""
+    print(f"{BOLD}{PURPLE}METRIX{RESET}  {MUTED}terminal language studio{RESET}")
+    print(f"{MUTED}{'─' * 62}{RESET}")
+    print(f"{BOLD}{CYAN}Start building{RESET}")
+    print("  m edit app.met          Open METRIX Studio")
+    print("  m run app.met           Run a terminal app")
+    print("  m repl                  Experiment interactively")
+    print()
+    print(f"{BOLD}{CYAN}Create your first screen{RESET}")
+    print('  echo \'say "Hello, METRIX" [box:rounded] :cyan:\' > app.met')
+    print("  m edit app.met")
+    print()
+    print(f"{BOLD}{CYAN}Studio controls{RESET}")
+    print("  Type to open suggestions  ·  ↑/↓ select  ·  Tab accept")
+    print("  F5 preview  ·  F6 tidy  ·  Ctrl+S save  ·  Ctrl+Q quit")
+    print()
+    print(f"{MUTED}Run m --help to see every command.  Update with: metrix update metrix{RESET}")
 
 
 def run_file(args):
@@ -154,6 +181,9 @@ def build_parser():
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
+    if not argv:
+        home_screen()
+        return 0
     if len(argv) == 1 and argv[0].endswith((".met", ".metrix")):
         return run_file(argparse.Namespace(file=argv[0]))
 
