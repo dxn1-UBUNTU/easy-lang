@@ -1,0 +1,20 @@
+#!/usr/bin/env metrix
+# A terminal-only product dashboard built from METRIX UI primitives.
+
+clear
+say "NEXUS CONTROL PLANE  •  production  •  eu-west" [header] [width:84] [bg:#101828] [fg:#7dd3fc]
+say "All systems operational" [toast:success] [fg:#4ade80]
+say "REQUESTS" [panel:Live traffic] [width:38] [bg:#172033] [fg:#e2e8f0]
+say "12,842 requests  •  98.7% healthy\nP95 124 ms  •  error rate 0.02%" [card] [width:38] [bg:#111827] [fg:#cbd5e1]
+say "" [rule] [width:84] [fg:#334155]
+
+row "SERVICES\n● API gateway\n● Worker queue\n● Websocket relay" | "ACTIVITY\n09:41 deploy accepted\n09:42 cache warmed\n09:43 1,204 active sessions" [left:29]
+
+say "AGENT" [panel:Task runner] [width:84] [bg:#172033] [fg:#f0abfc]
+say "Open command palette" [key:Ctrl+K] [fg:#fbbf24]
+say "Build finished successfully\n18 checks passed  •  0 warnings" [card] [width:54] [bg:#111827] [fg:#e5e7eb]
+
+set jobs ["ingest", "index", "report", "notify"]
+say "Jobs: {jobs}" [box:dotted] [width:54] [fg:#a5b4fc]
+say "syncing" [progress:72] [width:52] [fg:#38bdf8]
+say "Use the API layer next: metrix [api-call]<ollama>(prompt=\"hello\")" [footer] [width:84] [bg:#101828] [fg:#94a3b8]

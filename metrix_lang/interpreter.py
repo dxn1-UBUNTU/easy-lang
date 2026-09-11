@@ -82,12 +82,24 @@ def apply_styles(text, styles_list):
 
 
 def apply_color(text, color_name):
-    if color_name in COLORS:
-        return f"{COLORS[color_name]}{text}{RESET}"
+    color_code = color_to_ansi(color_name)
+    if color_code:
+        return f"{color_code}{text}{RESET}"
     return text
 
 
 def apply_bg(text, color_name):
+    color_code = color_to_ansi(color_name, background=True)
+    if color_code:
+        return f"{color_code}{text}{RESET}"
+    return text
+
+
+def color_to_ansi(value, background=False):
+    """Turn a named METRIX colour or #RGB/#RRGGBB into a terminal colour."""
+    value = str(value or "").lower()
+    if value in COLORS and not background:
+        return COLORS[value]
     bg_map = {
         "green": "\033[42m",
         "red": "\033[41m",
@@ -98,9 +110,15 @@ def apply_bg(text, color_name):
         "white": "\033[47m",
         "black": "\033[40m",
     }
-    if color_name in bg_map:
-        return f"{bg_map[color_name]}{text}{RESET}"
-    return text
+    if background and value in bg_map:
+        return bg_map[value]
+    if re.fullmatch(r"#[0-9a-f]{3}|#[0-9a-f]{6}", value):
+        digits = value[1:]
+        if len(digits) == 3:
+            digits = "".join(char * 2 for char in digits)
+        red, green, blue = (int(digits[index:index + 2], 16) for index in range(0, 6, 2))
+        return f"\033[{48 if background else 38};2;{red};{green};{blue}m"
+    return None
 
 
 def parse_value(raw, memory):
@@ -198,6 +216,12 @@ def parse_tags(raw):
         "padding": 1,
         "width": None,
         "bg": None,
+        "fg": None,
+        "panel": None,
+        "card": False,
+        "key": None,
+        "toast": None,
+        "rule": False,
         "styles": [],
     }
 
@@ -251,9 +275,27 @@ def parse_tags(raw):
     if width_match:
         result["width"] = max(1, int(width_match.group(1)))
 
-    bg_match = re.search(r"\[bg:(\w+)\]", raw, re.IGNORECASE)
+    bg_match = re.search(r"\[bg:([#\w]+)\]", raw, re.IGNORECASE)
     if bg_match:
         result["bg"] = bg_match.group(1).lower()
+
+    fg_match = re.search(r"\[fg:([#\w]+)\]", raw, re.IGNORECASE)
+    if fg_match:
+        result["fg"] = fg_match.group(1).lower()
+
+    panel_match = re.search(r"\[panel:([^\]]+)\]", raw, re.IGNORECASE)
+    if panel_match:
+        result["panel"] = panel_match.group(1).strip()
+    if re.search(r"\[card\]", raw, re.IGNORECASE):
+        result["card"] = True
+    key_match = re.search(r"\[key:([^\]]+)\]", raw, re.IGNORECASE)
+    if key_match:
+        result["key"] = key_match.group(1).strip()
+    toast_match = re.search(r"\[toast(?::(success|info|warning|error))?\]", raw, re.IGNORECASE)
+    if toast_match:
+        result["toast"] = (toast_match.group(1) or "info").lower()
+    if re.search(r"\[rule\]", raw, re.IGNORECASE):
+        result["rule"] = True
 
     for style_name in ["bold", "dim", "italic", "underline", "blink", "reverse", "strikethrough"]:
         if re.search(rf"\[{style_name}\]", raw, re.IGNORECASE):
@@ -282,7 +324,13 @@ def strip_tags(raw):
         r"align:(?:left|center|right)|"
         r"padding:\d+|"
         r"width:\d+|"
-        r"bg:\w+|"
+        r"bg:[#\w]+|"
+        r"fg:[#\w]+|"
+        r"panel:[^\]]+|"
+        r"card|"
+        r"key:[^\]]+|"
+        r"toast(?::(?:success|info|warning|error))?|"
+        r"rule|"
         r"bold|"
         r"dim|"
         r"italic|"
@@ -299,6 +347,11 @@ def strip_tags(raw):
 
 def parse_color(raw):
     color_code = None
+    hex_match = re.search(r"\s+(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6})\s*$", raw)
+    if hex_match:
+        color_code = color_to_ansi(hex_match.group(1))
+        raw = raw[: hex_match.start()].strip()
+        return color_code, raw
     color_match = re.search(r":(\w+):\s*$", raw)
     if color_match:
         color_name = color_match.group(1)
@@ -399,14 +452,32 @@ def parse_say_args(raw, memory, functions=None):
 
 
 def format_border(text, style_name="single", width=None, padding=1):
-    visible = strip_ansi(text)
-    width = width or len(visible)
+    lines = str(text).split("\n")
+    width = width or max((len(strip_ansi(line)) for line in lines), default=0)
     tl, h, tr, v, bl, h2, br = BORDERS.get(style_name, BORDERS["single"])
     inner_width = width + padding * 2
     top = f"{tl}{h * (inner_width + 2)}{tr}"
-    middle = f"{v}{' ' * padding}{text}{' ' * padding} {v}"
+    middle = [
+        f"{v}{' ' * padding}{line}{' ' * max(0, width - len(strip_ansi(line)) + padding)} {v}"
+        for line in lines
+    ]
     bottom = f"{bl}{h2 * (inner_width + 2)}{br}"
-    return [top, middle, bottom]
+    return [top, *middle, bottom]
+
+
+def format_panel(text, title, width=None, padding=1):
+    """Render a titled card for terminal dashboards and agent workspaces."""
+    lines = str(text).split("\n")
+    title = str(title or "PANEL").upper()
+    content_width = max((len(strip_ansi(line)) for line in lines), default=0)
+    width = max(width or content_width, content_width, len(title) + 4)
+    top_fill = max(1, width - len(title) - 2)
+    output = [f"╭─ {title} {'─' * top_fill}╮"]
+    for line in lines:
+        space = max(0, width - len(strip_ansi(line)) + padding)
+        output.append(f"│{' ' * padding}{line}{' ' * space}│")
+    output.append(f"╰{'─' * (width + padding * 2)}╯")
+    return output
 
 
 def format_chat(text, side, width=None):
@@ -447,6 +518,11 @@ def format_footer(text, width=None):
 
 def format_alert(text):
     return [f"\u26a0 {text}"]
+
+
+def format_toast(text, kind):
+    icon = {"success": "✓", "warning": "⚠", "error": "✕", "info": "●"}.get(kind, "●")
+    return [f" {icon} {str(kind or 'info').upper():<7} {text}"]
 
 
 def format_list(text, width=None):
@@ -522,6 +598,8 @@ def align_text(text, alignment, width=None):
 
 
 def format_output(text, component, color_code):
+    if component["fg"]:
+        color_code = color_to_ansi(component["fg"])
     if color_code:
         text = f"{color_code}{text}{RESET}"
 
@@ -535,6 +613,21 @@ def format_output(text, component, color_code):
 
     if component["alert"]:
         return format_alert(text)
+
+    if component["toast"]:
+        return format_toast(text, component["toast"])
+
+    if component["rule"]:
+        return format_hr(component["width"] or 40)
+
+    if component["key"]:
+        text = f"[ {component['key']} ]  {text}"
+
+    if component["panel"]:
+        return format_panel(text, component["panel"], component["width"], component["padding"])
+
+    if component["card"]:
+        return format_border(text, "rounded", component["width"], component["padding"])
 
     if component["badge"]:
         return [f"[ {text} ]"]
@@ -645,6 +738,13 @@ API_ROUTES = {
         "body": lambda params: json.dumps({"model": params.get("model", "command"), "prompt": params.get("prompt", ""), "max_tokens": params.get("max_tokens", 256)}),
         "extract": lambda data: data.get("generations", [{}])[0].get("text", ""),
     },
+    "ollama": {
+        "url": "http://localhost:11434/api/generate",
+        "method": "POST",
+        "headers": lambda key: {"Content-Type": "application/json"},
+        "body": lambda params: json.dumps({"model": params.get("model", "llama3.2"), "prompt": params.get("prompt", ""), "stream": False}),
+        "extract": lambda data: data.get("response", "") if isinstance(data, dict) else str(data),
+    },
     "http": {
         "url": None,
         "method": "GET",
@@ -667,18 +767,28 @@ def resolve_param(value, memory):
         return value
 
 
+def resolve_api_value(value, memory):
+    """Resolve variables and JSON literals passed to an api-call parameter."""
+    if value in memory:
+        return memory[value]
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return value
+
+
 def api_call(service, params, memory):
     if service not in API_ROUTES:
         raise EasyError(f"unknown api service: {service}")
 
     route = API_ROUTES[service]
-    if service != "http":
+    if service not in {"http", "ollama"}:
         key_param = params.get("api-key") or params.get("api_key") or params.get("key")
         if not key_param:
             raise EasyError("api-call needs api-key param")
 
     api_key = None
-    if service != "http":
+    if service not in {"http", "ollama"}:
         api_key = resolve_param(str(key_param), memory)
         if not api_key:
             raise EasyError("api-key is empty")
@@ -690,6 +800,17 @@ def api_call(service, params, memory):
         route = dict(route)
         route["url"] = url
         route["method"] = params.get("method", "GET").upper()
+        supplied_headers = resolve_api_value(params.get("headers", "{}"), memory)
+        if not isinstance(supplied_headers, dict):
+            raise EasyError("http headers must be a JSON-style map")
+        route["headers"] = lambda _key: {str(key): str(value) for key, value in supplied_headers.items()}
+        if "json" in params:
+            supplied_body = resolve_api_value(params["json"], memory)
+            route["body"] = lambda _params: json.dumps(supplied_body)
+            route["headers"] = lambda _key: {**{str(key): str(value) for key, value in supplied_headers.items()}, "Content-Type": "application/json"}
+        elif "body" in params:
+            supplied_body = resolve_api_value(params["body"], memory)
+            route["body"] = lambda _params: json.dumps(supplied_body) if isinstance(supplied_body, (dict, list)) else str(supplied_body)
     elif service == "huggingface":
         model = params.get("model", "gpt2")
         route = dict(route)
@@ -703,13 +824,42 @@ def api_call(service, params, memory):
     req = urllib.request.Request(url, data=body.encode("utf-8") if body else None, headers=headers, method=method)
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        with urllib.request.urlopen(req, timeout=int(params.get("timeout", 30))) as response:
+            raw = response.read().decode("utf-8")
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                data = raw
             return route["extract"](data)
     except urllib.error.HTTPError as e:
         raise EasyError(f"api error {e.code}: {e.reason}")
     except urllib.error.URLError as e:
         raise EasyError(f"api request failed: {e.reason}")
+
+
+def request_data(url, method="GET", body=None, headers=None, timeout=20):
+    """Perform a JSON/text HTTP request for METRIX programs."""
+    headers = {str(key): str(value) for key, value in (headers or {}).items()}
+    payload = None
+    if body not in (None, ""):
+        if isinstance(body, (dict, list)):
+            headers.setdefault("Content-Type", "application/json")
+            payload = json.dumps(body).encode("utf-8")
+        else:
+            payload = str(body).encode("utf-8")
+    request = urllib.request.Request(str(url), data=payload, headers=headers, method=str(method).upper())
+    try:
+        with urllib.request.urlopen(request, timeout=int(timeout)) as response:
+            raw = response.read().decode("utf-8")
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return raw
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:300]
+        raise EasyError(f"request failed ({error.code}): {detail or error.reason}")
+    except urllib.error.URLError as error:
+        raise EasyError(f"request failed: {error.reason}")
 
 
 def builtin(name, args, memory):
@@ -933,9 +1083,31 @@ def builtin(name, args, memory):
     if name == "http":
         url = parse_value(args[0], memory) if args else ""
         method = parse_value(args[1], memory) if len(args) > 1 else "GET"
-        req = urllib.request.Request(url, method=method)
-        with urllib.request.urlopen(req) as response:
-            return response.read().decode()
+        result = request_data(url, method)
+        return json.dumps(result, ensure_ascii=False) if isinstance(result, (dict, list)) else result
+    if name == "request":
+        url = parse_value(args[0], memory) if args else ""
+        method = parse_value(args[1], memory) if len(args) > 1 else "GET"
+        body = parse_value(args[2], memory) if len(args) > 2 else None
+        headers = parse_value(args[3], memory) if len(args) > 3 else {}
+        timeout = parse_value(args[4], memory) if len(args) > 4 else 20
+        if not isinstance(headers, dict):
+            raise EasyError("request headers must be a JSON-style map")
+        return request_data(url, method, body, headers, timeout)
+    if name == "webhook":
+        url = parse_value(args[0], memory) if args else ""
+        payload = parse_value(args[1], memory) if len(args) > 1 else {}
+        headers = parse_value(args[2], memory) if len(args) > 2 else {}
+        if not isinstance(headers, dict):
+            raise EasyError("webhook headers must be a JSON-style map")
+        return request_data(url, "POST", payload, headers)
+    if name == "download":
+        url = parse_value(args[0], memory) if args else ""
+        path = parse_value(args[1], memory) if len(args) > 1 else "download.txt"
+        result = request_data(url)
+        with open(path, "w", encoding="utf-8") as file:
+            file.write(json.dumps(result, ensure_ascii=False, indent=2) if isinstance(result, (dict, list)) else str(result))
+        return str(path)
     if name == "len":
         return len(parse_value(args[0], memory) if args else "")
     if name == "upper":
@@ -1080,6 +1252,107 @@ def parse_builtin_call(line):
         for arg in re.split(r",\s*", args_str):
             args.append(arg.strip())
     return name, args
+
+
+KNOWN_COMMANDS = {
+    "say", "set", "let", "ask", "select", "clear", "row", "add", "sub",
+    "metrix", "if", "else", "for", "while", "func", "return",
+}
+
+
+def check_source(source):
+    """Return static syntax issues without running files, requests, or commands."""
+    issues = []
+    lines = source.splitlines()
+    previous_code = None
+    block_indent = None
+
+    for number, original in enumerate(lines, start=1):
+        stripped = original.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "\t" in original[:len(original) - len(original.lstrip())]:
+            issues.append(("error", number, "indentation uses a tab; use spaces"))
+        indent = len(original) - len(original.lstrip(" "))
+        if indent % 4:
+            issues.append(("error", number, "indentation must be a multiple of four spaces"))
+        if block_indent is not None:
+            if indent <= block_indent:
+                issues.append(("error", number, "expected an indented block after ':'"))
+            block_indent = None
+
+        quote = None
+        stack = []
+        pairs = {")": "(", "]": "[", "}": "{"}
+        for char in stripped:
+            if char in {'"', "'"}:
+                quote = None if quote == char else char if quote is None else quote
+            elif quote is None and char in "([{":
+                stack.append(char)
+            elif quote is None and char in ")]}":
+                if not stack or stack.pop() != pairs[char]:
+                    issues.append(("error", number, f"unmatched '{char}'"))
+                    break
+        else:
+            if quote:
+                issues.append(("error", number, "unterminated string"))
+            elif stack:
+                issues.append(("error", number, f"unclosed '{stack[-1]}'"))
+
+        command = stripped.split(maxsplit=1)[0]
+        is_assignment = re.match(r"[A-Za-z_][A-Za-z0-9_]*\s*=", stripped)
+        is_call = re.match(r"[A-Za-z_][A-Za-z0-9_]*\s*\(", stripped)
+        if command not in KNOWN_COMMANDS and not is_assignment and not is_call:
+            issues.append(("error", number, f"unknown command '{command}'"))
+
+        if command in {"if", "for", "while", "func", "else"}:
+            if not stripped.endswith(":"):
+                issues.append(("error", number, f"{command} block must end with ':'"))
+            else:
+                block_indent = indent
+        if command == "else" and stripped != "else:":
+            issues.append(("error", number, "else syntax is exactly: else:"))
+        if command in {"set", "let", "add", "sub", "ask", "select"}:
+            parts = stripped.split()
+            if len(parts) < 2 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", parts[1]):
+                issues.append(("error", number, f"{command} needs a valid variable name"))
+        if command == "row" and not re.fullmatch(r"row\s+.+?\s*\|\s*.+?(?:\s+\[left:\d+\])?", stripped):
+            issues.append(("error", number, 'row syntax is: row "left" | "right" [left:28]'))
+        if command == "metrix" and "[api-call]" in stripped:
+            try:
+                parsed = parse_api_call_args(stripped[len("metrix"):].strip())
+                if parsed and parsed[0] not in API_ROUTES:
+                    issues.append(("error", number, f"unknown API service '{parsed[0]}'"))
+            except EasyError as error:
+                issues.append(("error", number, str(error)))
+
+        # Only inspect tags outside strings. JSON lists and literal keyboard
+        # labels are valid program text, not UI tags.
+        tag_source = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', '""', stripped)
+        for tag in re.findall(r"\[([^\]]+)\]", tag_source):
+            if '"' in tag or "'" in tag:
+                continue
+            valid = (
+                tag in {"box", "sidebar", "header", "footer", "alert", "badge", "code", "list", "table", "hr", "spinner", "card", "rule", "bold", "dim", "italic", "underline", "blink", "reverse", "strikethrough"}
+                or re.fullmatch(r"box:(single|double|rounded|bold|dotted)", tag, re.IGNORECASE)
+                or re.fullmatch(r"chat:(left|right)", tag, re.IGNORECASE)
+                or re.fullmatch(r"progress:\d+", tag)
+                or re.fullmatch(r"input:[^\]]+", tag)
+                or re.fullmatch(r"align:(left|center|right)", tag, re.IGNORECASE)
+                or re.fullmatch(r"(padding|width|left):\d+", tag)
+                or re.fullmatch(r"(bg|fg):(?:#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[A-Za-z_]+)", tag)
+                or re.fullmatch(r"panel:[^\]]+", tag, re.IGNORECASE)
+                or re.fullmatch(r"key:[^\]]+", tag, re.IGNORECASE)
+                or re.fullmatch(r"toast(?::(?:success|info|warning|error))?", tag, re.IGNORECASE)
+                or tag == "api-call"
+            )
+            if not valid:
+                issues.append(("error", number, f"unknown or invalid UI tag '[{tag}]'"))
+        previous_code = (number, indent, stripped)
+
+    if block_indent is not None:
+        issues.append(("error", len(lines) or 1, "expected an indented block after ':'"))
+    return issues
 
 
 def run(source, memory=None, functions=None, allow_return=False):

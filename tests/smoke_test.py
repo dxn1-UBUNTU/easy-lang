@@ -5,7 +5,7 @@ import sys
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from metrix_lang.interpreter import run
+from metrix_lang.interpreter import check_source, run
 from metrix_lang.editor import EasyCompleter
 from prompt_toolkit.document import Document
 
@@ -94,6 +94,22 @@ say slice("terminal", 0, 4)
 say urlencode("hello world")
 '''
     assert run(toolkit) == ["metrix,studio", "cba", "term", "hello+world"]
+
+    tui = '''\
+say "Control plane" [panel:Traffic] [width:28] [bg:#101828] [fg:#7dd3fc]
+say "deployed" [toast:success]
+say "Open palette" [key:Ctrl+K]
+say "" [rule] [width:28]
+'''
+    assert check_source(tui) == []
+    tui_output = run(tui)
+    assert any("TRAFFIC" in line for line in tui_output)
+    assert any("SUCCESS" in line for line in tui_output)
+
+    invalid = 'if true:\nsay "missing indent" [made-up]'
+    errors = check_source(invalid)
+    assert any("expected an indented block" in message for _level, _line, message in errors)
+    assert any("unknown or invalid UI tag" in message for _level, _line, message in errors)
     print("smoke test passed")
 
 

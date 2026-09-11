@@ -19,7 +19,7 @@ from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.layout.containers import ConditionalContainer
 from prompt_toolkit.layout.menus import CompletionsMenu
 
-from metrix_lang.interpreter import EasyError, run, strip_ansi
+from metrix_lang.interpreter import EasyError, check_source, run, strip_ansi
 
 
 EASY_KEYWORDS = [
@@ -78,6 +78,12 @@ EASY_COMPONENTS = [
     "[box:rounded]",
     "[box:bold]",
     "[box:dotted]",
+    "[panel:TITLE]",
+    "[card]",
+    "[key:Ctrl+S]",
+    "[toast:success]",
+    "[toast:error]",
+    "[rule]",
     "[chat:left]",
     "[chat:right]",
     "[sidebar]",
@@ -103,6 +109,8 @@ EASY_COMPONENTS = [
     "[padding:2]",
     "[width:40]",
     "[bg:blue]",
+    "[bg:#101828]",
+    "[fg:#7dd3fc]",
 ]
 
 EASY_BUILTINS = [
@@ -142,6 +150,9 @@ EASY_BUILTINS = [
     "base64(",
     "decode(",
     "http(",
+    "request(",
+    "webhook(",
+    "download(",
     "first(",
     "last(",
     "reverse(",
@@ -295,6 +306,12 @@ EASY_DOCS = {
     "[box:rounded]": "[box:rounded] - Wrap text in a rounded box",
     "[box:bold]": "[box:bold] - Wrap text in a bold box",
     "[box:dotted]": "[box:dotted] - Wrap text in a dotted box",
+    "[panel:TITLE]": "[panel:TITLE] - Titled dashboard panel",
+    "[card]": "[card] - Rounded multi-line terminal card",
+    "[key:Ctrl+S]": "[key:Ctrl+S] - Keyboard shortcut hint",
+    "[toast:success]": "[toast:success] - Success notification",
+    "[toast:error]": "[toast:error] - Error notification",
+    "[rule]": "[rule] - Full-width divider",
     "[chat:left]": "[chat:left] - Left-aligned chat bubble",
     "[chat:right]": "[chat:right] - Right-aligned chat bubble",
     "[sidebar]": "[sidebar] - Vertical sidebar panel",
@@ -320,6 +337,8 @@ EASY_DOCS = {
     "[padding:2]": "[padding:2] - Add padding inside box",
     "[width:40]": "[width:40] - Set component width",
     "[bg:blue]": "[bg:blue] - Set background color",
+    "[bg:#101828]": "[bg:#101828] - 24-bit hex background color",
+    "[fg:#7dd3fc]": "[fg:#7dd3fc] - 24-bit hex foreground color",
     ":green:": ":green: - Green foreground color",
     ":red:": ":red: - Red foreground color",
     ":blue:": ":blue: - Blue foreground color",
@@ -356,6 +375,9 @@ EASY_DOCS = {
     "base64(": "base64(text) - Encode to base64",
     "decode(": "decode(base64_text) - Decode from base64",
     "http(": "http(url, method) - Make HTTP request",
+    "request(": "request(url, method, body, headers, timeout) - HTTP request with JSON body/headers",
+    "webhook(": "webhook(url, payload, headers) - Send a JSON POST request",
+    "download(": "download(url, path) - Fetch a URL into a local file",
     "get(": "get(data, key, default) - Read a map key or list item",
     "keys(": "keys(map) - List map keys",
     "values(": "values(map) - List map values",
@@ -907,7 +929,6 @@ def edit_file(path):
     def get_outline():
         """A lightweight explorer that makes large METRIX files navigable."""
         items = [("class:toolbar", " METRIX EXPLORER\n")]
-        diagnostics = []
         for number, source_line in enumerate(buffer.text.splitlines(), start=1):
             stripped = source_line.strip()
             if not stripped or stripped.startswith("#"):
@@ -922,11 +943,10 @@ def edit_file(path):
                 items.append(("class:component-chat", f" ◉  API call · line {number}\n"))
             elif stripped.startswith(("row ", "say ")) and any(tag in stripped for tag in ("[header]", "[footer]", "[sidebar]", "[chat:")):
                 items.append(("class:component-box", f" ▣  UI · line {number}\n"))
-            if stripped.split()[0] in {"if", "for", "while", "func"} and not stripped.endswith(":"):
-                diagnostics.append(f" ! line {number}: expected ':'")
+        diagnostics = check_source(buffer.text)
         if diagnostics:
             items.append(("class:error", "\n DIAGNOSTICS\n"))
-            items.extend(("class:error", f"{line}\n") for line in diagnostics[:5])
+            items.extend(("class:error", f" ! line {line}: {message}\n") for _level, line, message in diagnostics[:6])
         else:
             items.append(("class:line-number", "\n ✓ no static issues\n"))
         return items
@@ -960,6 +980,9 @@ def edit_file(path):
         "base64": "base64(text)",
         "decode": "decode(base64_text)",
         "http": "http(url, method)",
+        "request": "request(url, method, body, headers, timeout)",
+        "webhook": "webhook(url, payload, headers)",
+        "download": "download(url, path)",
         "first": "first(list)",
         "last": "last(list)",
         "reverse": "reverse(value)",

@@ -36,6 +36,48 @@ Run the complete example with:
 m run examples/agent_workspace.met
 ```
 
+For a full-color dashboard example, run:
+
+```bash
+m run examples/nexus_dashboard.met
+```
+
+## TUI design system
+
+METRIX screens are ordinary terminal output, but the primitives compose into product-quality layouts. Use named terminal colors or 24-bit hex colors with `[fg:#RRGGBB]`, `[bg:#RRGGBB]`, or a trailing `#RRGGBB`.
+
+```metrix
+say "NEXUS CONTROL PLANE" [header] [width:72] [bg:#101828] [fg:#7dd3fc]
+say "Database migration completed" [toast:success] [fg:#4ade80]
+say "REQUESTS\n12,842 requests · P95 124 ms" [panel:Live traffic] [width:42] [bg:#172033] [fg:#e2e8f0]
+say "Open command palette" [key:Ctrl+K] [fg:#fbbf24]
+say "" [rule] [width:72]
+```
+
+Available layout primitives include `row`, `[panel:TITLE]`, `[card]`, `[box:*]`, headers/footers, chat bubbles, lists, tables, badges, code panels, progress bars, toasts, shortcut hints, dividers, alignment, padding, widths, styles, and foreground/background colors.
+
+## Requests and APIs
+
+Use `request` for flexible text or JSON HTTP calls; it supports method, body, headers, and timeout. `webhook` posts JSON, while `download` saves a remote response to a file.
+
+```metrix
+set payload {"event": "deploy", "status": "ready"}
+set headers {"Authorization": "Bearer token", "X-Project": "metrix"}
+set response request("https://api.example.com/events", "POST", payload, headers, 15)
+say stringify(response) [code] [width:72]
+
+# Native provider call (Ollama is local; other supported providers include OpenAI,
+# Anthropic, Gemini, Cohere, Hugging Face, and generic HTTP.)
+metrix [api-call]<ollama>(model="llama3.2", prompt="Write a one-line release note")
+```
+
+Generic API calls can send headers and JSON safely without shelling out:
+
+```metrix
+metrix [api-call]<http>(url="https://api.example.com/items", method=POST, headers={"Authorization":"Bearer token"}, json={"name":"METRIX"}, timeout=15)
+say api_result [panel:Response] [width:72]
+```
+
 ## Language features
 
 - Terminal primitives: headers, footers, panes, boxes, chat bubbles, sidebars, tables, lists, alerts, badges, code panels, progress, spinners, styles, and color.
@@ -69,6 +111,10 @@ The built-in editor is designed for fast terminal development:
 - **F6** trims trailing whitespace, while the status bar tracks saved versus unsaved changes.
 - A permanent **METRIX Explorer** shows functions, state, API calls, UI sections, and simple static diagnostics beside the source.
 - Completion is a browseable language catalogue (90+ commands, components, colors, APIs, built-ins, snippets, variables, and functions declared in the current file), filtered as you type.
+
+## Checking code
+
+`m check app.met` is static: it does **not** execute code, call APIs, write files, or run shell commands. It reports line-level errors for malformed control blocks, indentation, broken strings/brackets, invalid UI tags, unknown commands, invalid API providers, and malformed rows. `m run` performs the same preflight check before execution.
 
 ## Safety
 

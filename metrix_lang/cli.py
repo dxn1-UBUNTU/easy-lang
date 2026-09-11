@@ -11,7 +11,7 @@ PURPLE = "\033[95m"
 MUTED = "\033[90m"
 BOLD = "\033[1m"
 
-from metrix_lang.interpreter import EasyError, run
+from metrix_lang.interpreter import EasyError, check_source, run
 
 try:
     from metrix_lang.editor import edit_file
@@ -51,7 +51,14 @@ def home_screen():
 
 def run_file(args):
     try:
-        for line in run(read_source(args.file)):
+        source = read_source(args.file)
+        issues = check_source(source)
+        errors = [issue for issue in issues if issue[0] == "error"]
+        if errors:
+            for _level, line, message in errors:
+                print(f"{args.file}:{line}: error: {message}", file=sys.stderr)
+            return 1
+        for line in run(source):
             print(line)
     except OSError as error:
         print(f"file error: {error}", file=sys.stderr)
@@ -65,14 +72,15 @@ def run_file(args):
 
 def check_file(args):
     try:
-        run(read_source(args.file))
+        issues = check_source(read_source(args.file))
     except OSError as error:
         print(f"file error: {error}", file=sys.stderr)
         return 1
-    except EasyError as error:
-        print(f"metrix error: {error}", file=sys.stderr)
+    for level, line, message in issues:
+        stream = sys.stderr if level == "error" else sys.stdout
+        print(f"{args.file}:{line}: {level}: {message}", file=stream)
+    if any(level == "error" for level, _line, _message in issues):
         return 1
-
     print("ok")
     return 0
 
