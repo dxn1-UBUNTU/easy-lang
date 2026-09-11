@@ -946,12 +946,8 @@ def edit_file(path):
         statusbar_control.text = get_statusbar()
         if docs_visible[0]:
             docs_control.text = get_doc_text()
-        word = buffer.document.get_word_before_cursor(WORD=True)
-        if word and not buffer.complete_state:
-            try:
-                buffer.start_completion(select_first=True)
-            except RuntimeError:
-                pass
+        # Completion is deliberately explicit: typing never opens a menu.
+        # Press Tab when you want suggestions for the word at the cursor.
 
     buffer.on_text_changed += on_text_changed
 
@@ -1008,7 +1004,12 @@ def edit_file(path):
         root_container,
         floats=[
             Float(
-                content=CompletionsMenu(max_height=12, scroll_offset=1, display_arrows=True),
+                # A spacer keeps the menu one row below the cursor instead of
+                # covering the code currently being typed.
+                content=HSplit([
+                    Window(height=1),
+                    CompletionsMenu(max_height=12, scroll_offset=1, display_arrows=True),
+                ]),
                 xcursor=True,
                 ycursor=True,
             ),
@@ -1074,8 +1075,6 @@ def edit_file(path):
         if app.current_buffer.complete_state:
             app.current_buffer.complete_previous()
             docs_control.text = get_doc_text()
-        else:
-            buffer.start_completion(select_first=False)
 
     @kb.add("right")
     def right_complete(_):
@@ -1179,11 +1178,6 @@ def edit_file(path):
             buffer.cursor_right()
         else:
             buffer.insert_text(">")
-
-    @kb.add("c-space")
-    def trigger_completion(_):
-        from prompt_toolkit.application import get_app
-        get_app().current_buffer.start_completion(select_first=False)
 
     @kb.add("f1")
     def show_docs(_):

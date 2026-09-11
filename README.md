@@ -61,9 +61,8 @@ if total == 6:
 
 The built-in editor is designed for fast terminal development:
 
-- Type `s` to open a live completion popup for `say`, `set`, and more.
-- Use **Up/Down** to choose a completion, then **Tab** to insert it.
-- **Ctrl+Space** opens completion manually.
+- Type normally without interruptions. Press **Tab** to open the completion popup for the word at your cursor.
+- Use **Up/Down** to choose a completion, then press **Tab** again to insert it.
 - **Ctrl+S** saves, **Ctrl+Q** exits, **Ctrl+/** comments a line, and **F1** opens documentation.
 - **F5** runs the current program into an in-editor preview panel; **Ctrl+P** closes it.
 - **F6** trims trailing whitespace, while the status bar tracks saved versus unsaved changes.
