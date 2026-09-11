@@ -38,11 +38,11 @@ metrix run examples/agent_workspace.metrix
 
 ## Language features
 
-- Terminal primitives: headers, footers, panes, boxes, chat bubbles, sidebars, tables, lists, alerts, progress, spinners, styles, and color.
+- Terminal primitives: headers, footers, panes, boxes, chat bubbles, sidebars, tables, lists, alerts, badges, code panels, progress, spinners, styles, and color.
 - Data: JSON-style lists and maps plus `get`, `keys`, `values`, `count`, `sort`, `title`, and `slug`.
 - Logic: `if` / `else`, `for`, `while`, and reusable `func` blocks with `return`.
-- Interaction: `ask name "Prompt"` and `clear`.
-- APIs: native calls to OpenAI, Anthropic, Gemini, Hugging Face, Cohere, and generic HTTP endpoints.
+- Interaction: `ask name "Prompt"`, `select name "Prompt" from ["one", "two"]`, and `clear`.
+- APIs: native calls to OpenAI-compatible endpoints, Anthropic, Gemini, Hugging Face, Cohere, Ollama, and configurable generic HTTP requests with headers and a body.
 - System tools: file I/O, shell commands, environment reads, hashes, encoding, date/time, and math.
 
 ```metrix
@@ -65,6 +65,8 @@ The built-in editor is designed for fast terminal development:
 - Use **Up/Down** to choose a completion, then **Tab** to insert it.
 - **Ctrl+Space** opens completion manually.
 - **Ctrl+S** saves, **Ctrl+Q** exits, **Ctrl+/** comments a line, and **F1** opens documentation.
+- **F5** runs the current program into an in-editor preview panel; **Ctrl+P** closes it.
+- **F6** trims trailing whitespace, while the status bar tracks saved versus unsaved changes.
 - Completion understands syntax, components, colors, APIs, functions, snippets, and variables declared in the current file.
 
 ## Safety

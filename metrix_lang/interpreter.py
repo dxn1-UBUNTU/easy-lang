@@ -151,6 +151,31 @@ def iterable_value(expression, memory):
     raise EasyError("for expects a list, string, map, or range(start, stop)")
 
 
+def interpolate_text(value, memory):
+    """Replace {variable} placeholders without turning strings into Python code."""
+    return re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", lambda match: str(memory.get(match.group(1), match.group(0))), str(value))
+
+
+def split_arguments(source):
+    """Split comma-separated syntax while respecting strings and JSON literals."""
+    items, current, quote, depth = [], [], None, 0
+    for char in source:
+        if char in ('"', "'"):
+            quote = None if quote == char else char if quote is None else quote
+        elif quote is None and char in "([{":
+            depth += 1
+        elif quote is None and char in ")]}":
+            depth = max(0, depth - 1)
+        if char == "," and quote is None and depth == 0:
+            items.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    if "".join(current).strip():
+        items.append("".join(current).strip())
+    return items
+
+
 def parse_tags(raw):
     result = {
         "box": False,
@@ -160,6 +185,8 @@ def parse_tags(raw):
         "header": False,
         "footer": False,
         "alert": False,
+        "badge": False,
+        "code": False,
         "list": False,
         "table": False,
         "progress": None,
@@ -190,6 +217,10 @@ def parse_tags(raw):
         result["footer"] = True
     if re.search(r"\[alert\]", raw, re.IGNORECASE):
         result["alert"] = True
+    if re.search(r"\[badge\]", raw, re.IGNORECASE):
+        result["badge"] = True
+    if re.search(r"\[code\]", raw, re.IGNORECASE):
+        result["code"] = True
     if re.search(r"\[list\]", raw, re.IGNORECASE):
         result["list"] = True
     if re.search(r"\[table\]", raw, re.IGNORECASE):
@@ -239,6 +270,8 @@ def strip_tags(raw):
         r"header|"
         r"footer|"
         r"alert|"
+        r"badge|"
+        r"code|"
         r"list|"
         r"table|"
         r"progress:\d+|"
@@ -361,7 +394,7 @@ def parse_say_args(raw, memory, functions=None):
     raw = strip_tags(raw)
     raw = eval_builtins_in_string(raw, memory, functions)
     value = parse_value(raw, memory)
-    return str(value), component, color_code
+    return interpolate_text(value, memory), component, color_code
 
 
 def format_border(text, style_name="single", width=None, padding=1):
@@ -502,6 +535,12 @@ def format_output(text, component, color_code):
     if component["alert"]:
         return format_alert(text)
 
+    if component["badge"]:
+        return [f"[ {text} ]"]
+
+    if component["code"]:
+        return format_border(text, "dotted", component["width"], component["padding"])
+
     if component["chat"]:
         return format_chat(text, component["chat"], component["width"])
 
@@ -555,7 +594,7 @@ def parse_api_call_args(raw):
     params_str = rest[1:-1]
     params = {}
 
-    for pair in re.split(r",\s*", params_str):
+    for pair in split_arguments(params_str):
         if "=" not in pair:
             continue
         key, value = pair.split("=", 1)
@@ -999,7 +1038,7 @@ def run(source, memory=None, functions=None, allow_return=False):
         if not line or line.startswith("#"):
             continue
 
-        if "=" in line and not line.startswith("[") and line.split()[0] not in ("say", "set", "add", "sub", "metrix", "if", "for", "while", "func", "return"):
+        if "=" in line and not line.startswith("[") and line.split()[0] not in ("say", "set", "let", "ask", "select", "clear", "row", "add", "sub", "metrix", "if", "for", "while", "func", "return"):
             if table_buffer:
                 output.extend(render_table(table_buffer))
                 table_buffer = []
@@ -1145,19 +1184,39 @@ def run(source, memory=None, functions=None, allow_return=False):
                     value = format_spinner(spinner_frame - 1)[0]
                 output.extend(format_output(value, component, color_code))
 
-            elif command == "set":
+            elif command in ("set", "let"):
                 if table_buffer:
                     output.extend(render_table(table_buffer))
                     table_buffer = []
                 if len(parts) != 3:
                     raise EasyError("set needs a name and value")
-                memory[parts[1]] = parse_value(parts[2], memory)
+                resolved = eval_builtins_in_string(parts[2], memory, functions)
+                memory[parts[1]] = parse_value(resolved, memory)
 
             elif command == "ask":
                 if len(parts) != 3:
                     raise EasyError('ask syntax is: ask name "Prompt"')
                 prompt = str(parse_value(parts[2], memory))
                 memory[parts[1]] = input(f"{prompt} ")
+
+            elif command == "select":
+                match = re.fullmatch(r"select\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.+?)\s+from\s+(.+)", line)
+                if not match:
+                    raise EasyError('select syntax is: select name "Prompt" from ["one", "two"]')
+                name, prompt_raw, choices_raw = match.groups()
+                prompt = interpolate_text(parse_value(prompt_raw, memory), memory)
+                choices = parse_value(eval_builtins_in_string(choices_raw, memory, functions), memory)
+                if not isinstance(choices, list) or not choices:
+                    raise EasyError("select needs a non-empty list")
+                print(prompt)
+                for index, choice in enumerate(choices, start=1):
+                    print(f"  {index}. {choice}")
+                while True:
+                    response = input("> ").strip()
+                    if response.isdigit() and 1 <= int(response) <= len(choices):
+                        memory[name] = choices[int(response) - 1]
+                        break
+                    print(f"Choose a number from 1 to {len(choices)}.")
 
             elif command == "clear":
                 output.append("\033[2J\033[H")

@@ -67,6 +67,16 @@ row "left\\nmore" | "right" [left:20]
     workspace_output = run(workspace)
     assert workspace_output[:2] == ["Metrix", "2"]
     assert "more" in workspace_output[4]
+
+    enhanced_ui = '''\
+set project "METRIX"
+set title_text title(project)
+say "{title_text}" [badge]
+say "let x = 42" [code]
+'''
+    enhanced_output = run(enhanced_ui)
+    assert enhanced_output[0] == "[ Metrix ]"
+    assert enhanced_output[1].startswith("┌")
     print("smoke test passed")
 
 
